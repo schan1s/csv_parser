@@ -1,113 +1,249 @@
-import Image from "next/image";
+"use client";
+import React, { useState, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-export default function Home() {
+// We're using a mock PapaParse here since we can't import external libraries
+const Papa = {
+  parse: (csv: string) => {
+    const lines = csv.split("\n");
+    const headers = lines[0].split(",");
+    const data = lines.slice(1).map((line) => line.split(","));
+    return { data, headers };
+  },
+  unparse: (data: any) => {
+    return data.map((row: string[]) => row.join(",")).join("\n");
+  },
+};
+
+export default function Component() {
+  const [csvContent, setCsvContent] = useState<string>("");
+  const [processedData, setProcessedData] = useState<string[][]>([]);
+  const [bcc, setBcc] = useState<string>("");
+  const [subject, setSubject] = useState<string>("");
+  const [sendAs, setSendAs] = useState<string>("");
+  const downloadLinkRef = useRef<HTMLAnchorElement>(null);
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setCsvContent(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const processCSV = () => {
+    const { data, headers } = Papa.parse(csvContent);
+    const accountNameIndex = headers.findIndex((h) => h === "Account Name");
+    const firstNameIndex = headers.findIndex((h) => h === "First Name");
+    const emailIndex = headers.findIndex((h) => h === "Email");
+
+    if (accountNameIndex === -1 || firstNameIndex === -1 || emailIndex === -1) {
+      alert(
+        'CSV must contain "Account Name", "First Name", and "Email" columns',
+      );
+      return;
+    }
+
+    // 1. Filter out duplicate emails (keeping blank emails)
+    const uniqueEmails = new Map();
+    const processedRows = data.filter((row: string[]) => {
+      const email = row[emailIndex].trim();
+      if (email === "") return true; // Keep blank emails
+      if (uniqueEmails.has(email)) return false;
+      uniqueEmails.set(email, row);
+      return true;
+    });
+
+    // 2. Sort by the 'account name' column
+    processedRows.sort((a: string[], b: string[]) =>
+      a[accountNameIndex].localeCompare(b[accountNameIndex]),
+    );
+
+    // 3. Delete children rows
+    const filteredRows = processedRows.filter((row: string[]) => {
+      const accountName = row[accountNameIndex].toLowerCase();
+      const firstName = row[firstNameIndex].toLowerCase();
+      return accountName.includes(firstName);
+    });
+
+    // 4. Combine rows with the same 'account name' and merge emails
+    const combinedRows = new Map();
+    filteredRows.forEach((row: string[]) => {
+      let accountName = row[accountNameIndex].replace(/&/g, "and"); // Replace "&" with "and"
+      const email = row[emailIndex].trim();
+      if (combinedRows.has(accountName)) {
+        const existingEmails = combinedRows.get(accountName);
+        if (email && !existingEmails.includes(email)) {
+          combinedRows.set(
+            accountName,
+            `${existingEmails},${email}`.replace(/^,/, ""),
+          );
+        }
+      } else {
+        combinedRows.set(accountName, email);
+      }
+    });
+
+    // 5. Convert to array and sort blank emails to the bottom
+    const sortedData = Array.from(combinedRows.entries()).sort(
+      ([, emailA], [, emailB]) => {
+        if (emailA === "" && emailB !== "") return 1;
+        if (emailA !== "" && emailB === "") return -1;
+        return 0;
+      },
+    );
+
+    const finalData = [
+      ["Known As", "To", "BCC", "Subject", "Send As"],
+      ...sortedData.map(([accountName, email]) => [
+        accountName,
+        email,
+        bcc,
+        subject,
+        sendAs,
+      ]),
+    ];
+    setProcessedData(finalData);
+  };
+
+  const downloadCSV = () => {
+    if (processedData.length === 0) {
+      alert("Please process the CSV first");
+      return;
+    }
+
+    const csvContent = Papa.unparse(processedData);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    if (downloadLinkRef.current) {
+      downloadLinkRef.current.href = url;
+      downloadLinkRef.current.download = "processed_data.csv";
+      downloadLinkRef.current.click();
+    }
+
+    // Clean up the URL object after the download is initiated
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>CSV Processor</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label htmlFor="csv-upload">Upload CSV File</Label>
+          <Input
+            id="csv-upload"
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+          />
         </div>
-      </div>
-
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
+        <div>
+          <Label htmlFor="bcc">BCC</Label>
+          <Input
+            id="bcc"
+            type="email"
+            placeholder="Enter BCC email"
+            value={bcc}
+            onChange={(e) => setBcc(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="subject">Subject</Label>
+          <Input
+            id="subject"
+            type="text"
+            placeholder="Enter email subject"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="sendAs">Send As</Label>
+          <Input
+            id="sendAs"
+            type="email"
+            placeholder="Enter Send As email"
+            value={sendAs}
+            onChange={(e) => setSendAs(e.target.value)}
+          />
+        </div>
+        <Button onClick={processCSV} className="w-full">
+          Process CSV
+        </Button>
+        <div>
+          <Label htmlFor="processed-data">Processed CSV Data</Label>
+          <div
+            id="processed-data"
+            className="border rounded-md overflow-auto max-h-[400px]"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {processedData[0]?.map((header, index) => (
+                    <TableHead
+                      key={index}
+                      className="px-4 py-2 bg-muted sticky top-0"
+                    >
+                      {header}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {processedData.slice(1).map((row, rowIndex) => (
+                  <TableRow key={rowIndex}>
+                    {row.map((cell, cellIndex) => (
+                      <TableCell
+                        key={cellIndex}
+                        className="px-4 py-2 whitespace-nowrap"
+                      >
+                        {cell}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="flex flex-col space-y-4">
+        <Button
+          onClick={downloadCSV}
+          className="w-full"
+          disabled={processedData.length === 0}
         >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
+          Download Processed CSV
+        </Button>
+        <a ref={downloadLinkRef} style={{ display: "none" }}>
+          Download CSV
         </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+      </CardFooter>
+    </Card>
   );
 }
