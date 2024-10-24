@@ -56,11 +56,12 @@ export default function Component() {
     const { data, headers } = Papa.parse(csvContent);
     const accountNameIndex = headers.findIndex((h) => h === "Account Name");
     const firstNameIndex = headers.findIndex((h) => h === "First Name");
+    const lastNameIndex = headers.findIndex((h) => h === "Last Name"); // Add Last Name index
     const emailIndex = headers.findIndex((h) => h === "Email");
 
-    if (accountNameIndex === -1 || firstNameIndex === -1 || emailIndex === -1) {
+    if (accountNameIndex === -1 || firstNameIndex === -1 || lastNameIndex === -1 || emailIndex === -1) {
       alert(
-        'CSV must contain "Account Name", "First Name", and "Email" columns',
+        'CSV must contain "Account Name", "First Name", "Last Name", and "Email" columns',
       );
       return;
     }
@@ -90,14 +91,20 @@ export default function Component() {
     // 4. Combine rows with the same 'account name' and merge emails
     const combinedRows = new Map();
     filteredRows.forEach((row: string[]) => {
-      let accountName = row[accountNameIndex].replace(/&/g, "and"); // Replace "&" with "and"
+      let accountName = row[accountNameIndex]
+        .replace(/&/g, "and") // Replace "&" with "and"
+        .replace(/household/gi, "") // Remove "household"
+        .trim()
+        .split(" ") // Split into words
+        .slice(0, -1) // Remove the last word
+        .join(" "); // Join the remaining words
       const email = row[emailIndex].trim();
       if (combinedRows.has(accountName)) {
         const existingEmails = combinedRows.get(accountName);
         if (email && !existingEmails.includes(email)) {
           combinedRows.set(
             accountName,
-            `${existingEmails},${email}`.replace(/^,/, ""),
+            existingEmails ? `${existingEmails};${email}` : email,
           );
         }
       } else {
