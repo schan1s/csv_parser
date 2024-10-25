@@ -88,33 +88,35 @@ export default function Component() {
       return accountName.includes(firstName);
     });
 
-    const combinedRows = new Map();
+    const combinedRows = new Map<string, string>();
 
     // First, collect and merge emails for each original account name
     filteredRows.forEach((row: string[]) => {
-      const originalAccountName = row[accountNameIndex]
+      const originalAccountName = (row[accountNameIndex] || "")
         .replace(/&/g, "and") // Replace "&" with "and"
         .replace(/household/gi, "") // Remove "household"
         .trim();
 
-      const email = row[emailIndex].trim();
+      const email = (row[emailIndex] || "").trim();
 
-      if (combinedRows.has(originalAccountName)) {
-        const existingEmails = combinedRows.get(originalAccountName);
-        if (email && !existingEmails.includes(email)) {
-          combinedRows.set(
-            originalAccountName,
-            existingEmails ? `${existingEmails};${email}` : email,
-          );
+      if (originalAccountName) {
+        if (combinedRows.has(originalAccountName)) {
+          const existingEmails = combinedRows.get(originalAccountName) || "";
+          if (email && !existingEmails.includes(email)) {
+            combinedRows.set(
+              originalAccountName,
+              existingEmails ? `${existingEmails};${email}` : email
+            );
+          }
+        } else {
+          combinedRows.set(originalAccountName, email);
         }
-      } else {
-        combinedRows.set(originalAccountName, email);
       }
     });
 
     // Then, modify the account names while preserving uniqueness
-    const finalCombinedRows = new Map();
-    const nameCountMap = new Map();
+    const finalCombinedRows = new Map<string, string>();
+    const nameCountMap = new Map<string, number>();
 
     combinedRows.forEach((emails, originalAccountName) => {
       const nameParts = originalAccountName.split(" ");
@@ -128,13 +130,16 @@ export default function Component() {
         accountName = originalAccountName;
       }
 
+      // Use a case-sensitive key for the Map
+      const caseSensitiveKey = `${accountName}\0${accountName.toLowerCase()}`;
+
       // Check if this name has been used before
-      if (nameCountMap.has(accountName)) {
-        const count = nameCountMap.get(accountName) + 1;
-        nameCountMap.set(accountName, count);
+      if (nameCountMap.has(caseSensitiveKey)) {
+        const count = nameCountMap.get(caseSensitiveKey)! + 1;
+        nameCountMap.set(caseSensitiveKey, count);
         accountName = `${accountName} (${count})`;
       } else {
-        nameCountMap.set(accountName, 1);
+        nameCountMap.set(caseSensitiveKey, 1);
       }
 
       finalCombinedRows.set(accountName, emails);
