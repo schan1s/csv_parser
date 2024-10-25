@@ -88,32 +88,63 @@ export default function Component() {
       return accountName.includes(firstName);
     });
 
-    // 4. Combine rows with the same 'account name' and merge emails
     const combinedRows = new Map();
+
+    // First, collect and merge emails for each original account name
     filteredRows.forEach((row: string[]) => {
-      let accountName = row[accountNameIndex]
+      const originalAccountName = row[accountNameIndex]
         .replace(/&/g, "and") // Replace "&" with "and"
         .replace(/household/gi, "") // Remove "household"
-        .trim()
-        .split(" ") // Split into words
-        .slice(0, -1) // Remove the last word
-        .join(" "); // Join the remaining words
+        .trim();
+
       const email = row[emailIndex].trim();
-      if (combinedRows.has(accountName)) {
-        const existingEmails = combinedRows.get(accountName);
+
+      if (combinedRows.has(originalAccountName)) {
+        const existingEmails = combinedRows.get(originalAccountName);
         if (email && !existingEmails.includes(email)) {
           combinedRows.set(
-            accountName,
+            originalAccountName,
             existingEmails ? `${existingEmails};${email}` : email,
           );
         }
       } else {
-        combinedRows.set(accountName, email);
+        combinedRows.set(originalAccountName, email);
       }
     });
 
+    // Then, modify the account names while preserving uniqueness
+    const finalCombinedRows = new Map();
+    const nameCountMap = new Map();
+
+    combinedRows.forEach((emails, originalAccountName) => {
+      const nameParts = originalAccountName.split(" ");
+      let accountName;
+
+      if (nameParts.length > 1) {
+        // Remove the last word entirely
+        accountName = nameParts.slice(0, -1).join(" ");
+      } else {
+        // If there's only one word, keep it as is
+        accountName = originalAccountName;
+      }
+
+      // Check if this name has been used before
+      if (nameCountMap.has(accountName)) {
+        const count = nameCountMap.get(accountName) + 1;
+        nameCountMap.set(accountName, count);
+        accountName = `${accountName} (${count})`;
+      } else {
+        nameCountMap.set(accountName, 1);
+      }
+
+      finalCombinedRows.set(accountName, emails);
+    });
+
+    // Log the final combined rows map
+    console.log("Final Combined Rows Map:", Array.from(finalCombinedRows.entries()));
+
     // 5. Convert to array and sort blank emails to the bottom
-    const sortedData = Array.from(combinedRows.entries()).sort(
+    const sortedData = Array.from(finalCombinedRows.entries()).sort(
       ([, emailA], [, emailB]) => {
         if (emailA === "" && emailB !== "") return 1;
         if (emailA !== "" && emailB === "") return -1;
