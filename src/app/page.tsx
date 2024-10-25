@@ -53,121 +53,143 @@ export default function Component() {
   };
 
   const processCSV = () => {
-    const { data, headers } = Papa.parse(csvContent);
-    const accountNameIndex = headers.findIndex((h) => h === "Account Name");
-    const firstNameIndex = headers.findIndex((h) => h === "First Name");
-    const lastNameIndex = headers.findIndex((h) => h === "Last Name"); // Add Last Name index
-    const emailIndex = headers.findIndex((h) => h === "Email");
+    try {
+      const { data, headers } = Papa.parse(csvContent);
+      console.log("Parsed CSV data:", data);
+      console.log("CSV headers:", headers);
 
-    if (accountNameIndex === -1 || firstNameIndex === -1 || lastNameIndex === -1 || emailIndex === -1) {
-      alert(
-        'CSV must contain "Account Name", "First Name", "Last Name", and "Email" columns',
-      );
-      return;
-    }
+      if (!Array.isArray(headers) || !Array.isArray(data)) {
+        throw new Error("Invalid CSV structure");
+      }
 
-    // 1. Filter out duplicate emails (keeping blank emails)
-    const uniqueEmails = new Map();
-    const processedRows = data.filter((row: string[]) => {
-      const email = row[emailIndex].trim();
-      if (email === "") return true; // Keep blank emails
-      if (uniqueEmails.has(email)) return false;
-      uniqueEmails.set(email, row);
-      return true;
-    });
+      const accountNameIndex = headers.findIndex((h) => h === "Account Name");
+      const firstNameIndex = headers.findIndex((h) => h === "First Name");
+      const lastNameIndex = headers.findIndex((h) => h === "Last Name");
+      const emailIndex = headers.findIndex((h) => h === "Email");
 
-    // 2. Sort by the 'account name' column
-    processedRows.sort((a: string[], b: string[]) =>
-      a[accountNameIndex].localeCompare(b[accountNameIndex]),
-    );
+      console.log("Column indices:", { accountNameIndex, firstNameIndex, lastNameIndex, emailIndex });
 
-    // 3. Delete children rows
-    const filteredRows = processedRows.filter((row: string[]) => {
-      const accountName = row[accountNameIndex].toLowerCase();
-      const firstName = row[firstNameIndex].toLowerCase();
-      return accountName.includes(firstName);
-    });
+      if (accountNameIndex === -1 || firstNameIndex === -1 || lastNameIndex === -1 || emailIndex === -1) {
+        throw new Error('CSV must contain "Account Name", "First Name", "Last Name", and "Email" columns');
+      }
 
-    const combinedRows = new Map<string, string>();
-
-    // First, collect and merge emails for each original account name
-    filteredRows.forEach((row: string[]) => {
-      const originalAccountName = (row[accountNameIndex] || "")
-        .replace(/&/g, "and") // Replace "&" with "and"
-        .replace(/household/gi, "") // Remove "household"
-        .trim();
-
-      const email = (row[emailIndex] || "").trim();
-
-      if (originalAccountName) {
-        if (combinedRows.has(originalAccountName)) {
-          const existingEmails = combinedRows.get(originalAccountName) || "";
-          if (email && !existingEmails.includes(email)) {
-            combinedRows.set(
-              originalAccountName,
-              existingEmails ? `${existingEmails};${email}` : email
-            );
-          }
-        } else {
-          combinedRows.set(originalAccountName, email);
+      // 1. Filter out duplicate emails (keeping blank emails)
+      const uniqueEmails = new Map();
+      const processedRows = data.filter((row: string[], index: number) => {
+        if (!Array.isArray(row) || row.length <= emailIndex) {
+          console.warn(`Skipping invalid row at index ${index}:`, row);
+          return false;
         }
-      }
-    });
+        
+        // Safely access the email, providing a default empty string if undefined
+        const email = ((row[emailIndex] || "") as string).trim();
+        
+        if (email === "") return true; // Keep blank emails
+        if (uniqueEmails.has(email)) return false;
+        uniqueEmails.set(email, row);
+        return true;
+      });
 
-    // Then, modify the account names while preserving uniqueness
-    const finalCombinedRows = new Map<string, string>();
-    const nameCountMap = new Map<string, number>();
+      console.log("Processed rows after filtering:", processedRows);
 
-    combinedRows.forEach((emails, originalAccountName) => {
-      const nameParts = originalAccountName.split(" ");
-      let accountName;
+      // 2. Sort by the 'account name' column
+      processedRows.sort((a: string[], b: string[]) => {
+        const nameA = ((a[accountNameIndex] || "") as string).toLowerCase();
+        const nameB = ((b[accountNameIndex] || "") as string).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
 
-      if (nameParts.length > 1) {
-        // Remove the last word entirely
-        accountName = nameParts.slice(0, -1).join(" ");
-      } else {
-        // If there's only one word, keep it as is
-        accountName = originalAccountName;
-      }
+      // 3. Delete children rows
+      const filteredRows = processedRows.filter((row: string[]) => {
+        const accountName = ((row[accountNameIndex] || "") as string).toLowerCase();
+        const firstName = ((row[firstNameIndex] || "") as string).toLowerCase();
+        return accountName.includes(firstName);
+      });
 
-      // Use a case-sensitive key for the Map
-      const caseSensitiveKey = `${accountName}\0${accountName.toLowerCase()}`;
+      const combinedRows = new Map();
 
-      // Check if this name has been used before
-      if (nameCountMap.has(caseSensitiveKey)) {
-        const count = nameCountMap.get(caseSensitiveKey)! + 1;
-        nameCountMap.set(caseSensitiveKey, count);
-        accountName = `${accountName} (${count})`;
-      } else {
-        nameCountMap.set(caseSensitiveKey, 1);
-      }
+      // First, collect and merge emails for each original account name
+      filteredRows.forEach((row: string[]) => {
+        const originalAccountName = ((row[accountNameIndex] || "") as string)
+          .replace(/&/g, "and")
+          .replace(/household/gi, "")
+          .trim();
 
-      finalCombinedRows.set(accountName, emails);
-    });
+        const email = ((row[emailIndex] || "") as string).trim();
 
-    // Log the final combined rows map
-    console.log("Final Combined Rows Map:", Array.from(finalCombinedRows.entries()));
+        if (originalAccountName) {
+          if (combinedRows.has(originalAccountName)) {
+            const existingEmails = combinedRows.get(originalAccountName) || "";
+            if (email && !existingEmails.includes(email)) {
+              combinedRows.set(
+                originalAccountName,
+                existingEmails ? `${existingEmails};${email}` : email
+              );
+            }
+          } else {
+            combinedRows.set(originalAccountName, email);
+          }
+        }
+      });
 
-    // 5. Convert to array and sort blank emails to the bottom
-    const sortedData = Array.from(finalCombinedRows.entries()).sort(
-      ([, emailA], [, emailB]) => {
-        if (emailA === "" && emailB !== "") return 1;
-        if (emailA !== "" && emailB === "") return -1;
-        return 0;
-      },
-    );
+      // Then, modify the account names while preserving uniqueness
+      const finalCombinedRows = new Map<string, string>();
+      const nameCountMap = new Map<string, number>();
 
-    const finalData = [
-      ["Known As", "To", "BCC", "Subject", "Send As"],
-      ...sortedData.map(([accountName, email]) => [
-        accountName,
-        email,
-        bcc,
-        subject,
-        sendAs,
-      ]),
-    ];
-    setProcessedData(finalData);
+      combinedRows.forEach((emails, originalAccountName) => {
+        const nameParts = originalAccountName.split(" ");
+        let accountName;
+
+        if (nameParts.length > 1) {
+          // Remove the last word entirely
+          accountName = nameParts.slice(0, -1).join(" ");
+        } else {
+          // If there's only one word, keep it as is
+          accountName = originalAccountName;
+        }
+
+        // Use a case-sensitive key for the Map
+        const caseSensitiveKey = `${accountName}\0${accountName.toLowerCase()}`;
+
+        // Check if this name has been used before
+        if (nameCountMap.has(caseSensitiveKey)) {
+          const count = nameCountMap.get(caseSensitiveKey)! + 1;
+          nameCountMap.set(caseSensitiveKey, count);
+          accountName = `${accountName} (${count})`;
+        } else {
+          nameCountMap.set(caseSensitiveKey, 1);
+        }
+
+        finalCombinedRows.set(accountName, emails);
+      });
+
+      // Log the final combined rows map
+      console.log("Final Combined Rows Map:", Array.from(finalCombinedRows.entries()));
+
+      // 5. Convert to array and sort blank emails to the bottom
+      const sortedData = Array.from(finalCombinedRows.entries()).sort(
+        ([, emailA], [, emailB]) => {
+          if (emailA === "" && emailB !== "") return 1;
+          if (emailA !== "" && emailB === "") return -1;
+          return 0;
+        },
+      );
+
+      const finalData = [
+        ["Known As", "To", "BCC", "Subject", "Send As"],
+        ...sortedData.map(([accountName, email]) => [
+          accountName,
+          email,
+          bcc,
+          subject,
+          sendAs,
+        ]),
+      ];
+      setProcessedData(finalData);
+    } catch (error) {
+      console.error("Error in processCSV:", error);
+      alert("An error occurred while processing the CSV. Please check the console for details.");
+    }
   };
 
   const downloadCSV = () => {
