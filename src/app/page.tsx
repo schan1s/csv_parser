@@ -213,8 +213,15 @@ export default function Component() {
   };
 
   return (
-    <div className="mt-8 mb-16"> {/* This adds margin-top and margin-bottom */}
-      <Card className="w-full max-w-2xl mx-auto">
+    <div className="mt-8 mb-16">
+      <Card className="w-full max-w-2xl mx-auto relative">
+        <div className="absolute top-0 right-3">
+          <img 
+            src="/images/hope-international-logo.png" 
+            alt="HOPE International Logo" 
+            className="w-40 h-auto"
+          />
+        </div>
         <CardHeader>
           <CardTitle>CSV Processor</CardTitle>
         </CardHeader>
