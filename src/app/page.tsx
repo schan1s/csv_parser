@@ -213,102 +213,109 @@ export default function Component() {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>CSV Processor</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label htmlFor="csv-upload">Upload CSV File</Label>
-          <Input
-            id="csv-upload"
-            type="file"
-            accept=".csv"
-            onChange={handleFileUpload}
-          />
-        </div>
-        <div>
-          <Label htmlFor="bcc">BCC</Label>
-          <Input
-            id="bcc"
-            type="email"
-            placeholder="Enter BCC email"
-            value={bcc}
-            onChange={(e) => setBcc(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="subject">Subject</Label>
-          <Input
-            id="subject"
-            type="text"
-            placeholder="Enter email subject"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="sendAs">Send As</Label>
-          <Input
-            id="sendAs"
-            type="email"
-            placeholder="Enter Send As email"
-            value={sendAs}
-            onChange={(e) => setSendAs(e.target.value)}
-          />
-        </div>
-        <Button onClick={processCSV} className="w-full">
-          Process CSV
-        </Button>
-        <div>
-          <Label htmlFor="processed-data">Processed CSV Data</Label>
-          <div
-            id="processed-data"
-            className="border rounded-md overflow-auto max-h-[400px]"
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {processedData[0]?.map((header, index) => (
-                    <TableHead
-                      key={index}
-                      className="px-4 py-2 bg-muted sticky top-0"
-                    >
-                      {header}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {processedData.slice(1).map((row, rowIndex) => (
-                  <TableRow key={rowIndex}>
-                    {row.map((cell, cellIndex) => (
-                      <TableCell
-                        key={cellIndex}
-                        className="px-4 py-2 whitespace-nowrap"
+    <div className="mt-8 mb-16"> {/* This adds margin-top and margin-bottom */}
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>CSV Processor</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="csv-upload">Upload CSV File</Label>
+            <Input
+              id="csv-upload"
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+            />
+          </div>
+          <div>
+            <Label htmlFor="bcc">BCC</Label>
+            <Input
+              id="bcc"
+              type="email"
+              placeholder="Enter BCC email"
+              value={bcc}
+              onChange={(e) => setBcc(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="subject">Subject</Label>
+            <Input
+              id="subject"
+              type="text"
+              placeholder="Enter email subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="sendAs">Send As</Label>
+            <Input
+              id="sendAs"
+              type="email"
+              placeholder="Enter Send As email"
+              value={sendAs}
+              onChange={(e) => setSendAs(e.target.value)}
+            />
+          </div>
+          <Button onClick={processCSV} className="w-full">
+            Process CSV
+          </Button>
+          <div>
+            <Label htmlFor="processed-data">Processed CSV Data</Label>
+            <div
+              id="processed-data"
+              className="border rounded-md overflow-auto max-h-[400px]"
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {processedData[0]?.map((header, index) => (
+                      <TableHead
+                        key={index}
+                        className="px-4 py-2 bg-muted sticky top-0"
                       >
-                        {cell}
-                      </TableCell>
+                        {header}
+                      </TableHead>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {processedData.slice(1).map((row, rowIndex) => (
+                    <TableRow key={rowIndex}>
+                      {row.map((cell, cellIndex) => (
+                        <TableCell
+                          key={cellIndex}
+                          className="px-4 py-2 whitespace-nowrap"
+                        >
+                          {cell}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-4">
+          <Button
+            onClick={downloadCSV}
+            className="w-full"
+            disabled={processedData.length === 0}
+          >
+            Download Processed CSV
+          </Button>
+          <a ref={downloadLinkRef} style={{ display: "none" }}>
+            Download CSV
+          </a>
+        </CardFooter>
+      </Card>
+      {processedData.length > 0 && (
+        <div className="mt-8 text-center text-sm text-gray-500">
+          CSV processing complete. You can now download the processed file.
         </div>
-      </CardContent>
-      <CardFooter className="flex flex-col space-y-4">
-        <Button
-          onClick={downloadCSV}
-          className="w-full"
-          disabled={processedData.length === 0}
-        >
-          Download Processed CSV
-        </Button>
-        <a ref={downloadLinkRef} style={{ display: "none" }}>
-          Download CSV
-        </a>
-      </CardFooter>
-    </Card>
+      )}
+    </div>
   );
 }
