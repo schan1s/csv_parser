@@ -55,9 +55,8 @@ export default function Component() {
   const processCSV = () => {
     try {
       const { data, headers } = Papa.parse(csvContent);
-      console.log("Parsed CSV data:", data);
-      console.log("CSV headers:", headers);
-
+      const uniqueEmails = new Map();
+      
       if (!Array.isArray(headers) || !Array.isArray(data)) {
         throw new Error("Invalid CSV structure");
       }
@@ -67,30 +66,69 @@ export default function Component() {
       const lastNameIndex = headers.findIndex((h) => h === "Last Name");
       const emailIndex = headers.findIndex((h) => h === "Email");
 
-      console.log("Column indices:", { accountNameIndex, firstNameIndex, lastNameIndex, emailIndex });
+      console.log("1. Starting processing");
+      
+      // First, group rows by account name to check spouse pairs
+      const accountGroups = new Map();
+      data.forEach((row: string[]) => {
+        const accountName = ((row[accountNameIndex] || "") as string)
+          .replace(/\s*household\s*/gi, "")
+          .trim();
+        
+        if (!accountGroups.has(accountName)) {
+          accountGroups.set(accountName, []);
+        }
+        accountGroups.get(accountName).push(row);
+      });
 
-      if (accountNameIndex === -1 || firstNameIndex === -1 || lastNameIndex === -1 || emailIndex === -1) {
-        throw new Error('CSV must contain "Account Name", "First Name", "Last Name", and "Email" columns');
-      }
+      // Log the groups to verify
+      console.log("Account Groups:", Object.fromEntries(accountGroups));
 
-      // 1. Filter out duplicate emails (keeping blank emails)
-      const uniqueEmails = new Map();
       const processedRows = data.filter((row: string[], index: number) => {
         if (!Array.isArray(row) || row.length <= emailIndex) {
-          console.warn(`Skipping invalid row at index ${index}:`, row);
           return false;
         }
         
-        // Safely access the email, providing a default empty string if undefined
         const email = ((row[emailIndex] || "") as string).trim();
+        const accountName = ((row[accountNameIndex] || "") as string)
+          .replace(/\s*household\s*/gi, "")
+          .trim();
+        const firstName = ((row[firstNameIndex] || "") as string).toLowerCase();
         
-        if (email === "") return true; // Keep blank emails
-        if (uniqueEmails.has(email)) return false;
-        uniqueEmails.set(email, row);
+        // If it's a child (first name not in account name) with blank email, skip this row
+        if (email === "" && !accountName.toLowerCase().includes(firstName)) {
+          return false;
+        }
+
+        // For joint accounts
+        if (accountName.includes("&")) {
+          const accountRows = accountGroups.get(accountName) || [];
+          const allEmailsBlank = accountRows.every((r: string[]) => 
+            ((r[emailIndex] || "") as string).trim() === ""
+          );
+          const someEmailsPresent = accountRows.some((r: string[]) => 
+            ((r[emailIndex] || "") as string).trim() !== ""
+          );
+          
+          // If all emails are blank, keep this row
+          if (allEmailsBlank) {
+            return true;
+          }
+          
+          // If some emails are present and this row has no email, filter it out
+          if (someEmailsPresent && email === "") {
+            return false;
+          }
+          
+          // Keep rows with emails
+          return email !== "";
+        }
+        
+        // Keep single person accounts and rows with emails
         return true;
       });
 
-      console.log("Processed rows after filtering:", processedRows);
+      console.log("2. After filtering");
 
       // 2. Sort by the 'account name' column
       processedRows.sort((a: string[], b: string[]) => {
@@ -99,54 +137,124 @@ export default function Component() {
         return nameA.localeCompare(nameB);
       });
 
-      // 3. Delete children rows
-      const filteredRows = processedRows.filter((row: string[]) => {
-        const accountName = ((row[accountNameIndex] || "") as string).toLowerCase();
-        const firstName = ((row[firstNameIndex] || "") as string).toLowerCase();
-        return accountName.includes(firstName);
+      console.log("3. After first sort");
+
+      // 3. Sort children with emails to the bottom
+      const sortedRows = processedRows.sort((a: string[], b: string[]) => {
+        const aAccountName = ((a[accountNameIndex] || "") as string).toLowerCase();
+        const aFirstName = ((a[firstNameIndex] || "") as string).toLowerCase();
+        const aEmail = ((a[emailIndex] || "") as string).trim();
+        
+        const bAccountName = ((b[accountNameIndex] || "") as string).toLowerCase();
+        const bFirstName = ((b[firstNameIndex] || "") as string).toLowerCase();
+        const bEmail = ((b[emailIndex] || "") as string).trim();
+
+        const aIsChildWithEmail = !aAccountName.includes(aFirstName) && aEmail !== "";
+        const bIsChildWithEmail = !bAccountName.includes(bFirstName) && bEmail !== "";
+
+        if (aIsChildWithEmail && !bIsChildWithEmail) return 1;  // Move a to bottom
+        if (!aIsChildWithEmail && bIsChildWithEmail) return -1; // Move b to bottom
+        return 0;
       });
+
+      console.log("4. After second sort");
 
       const combinedRows = new Map();
 
       // First, collect and merge emails for each original account name
-      filteredRows.forEach((row: string[]) => {
+      sortedRows.forEach((row: string[]) => {
         const originalAccountName = ((row[accountNameIndex] || "") as string)
-          .replace(/&/g, "and")
-          .replace(/household/gi, "")
+          .replace(/\s*household\s*/gi, "")
           .trim();
 
-        const email = ((row[emailIndex] || "") as string).trim();
+        const firstName = (row[firstNameIndex] || "").trim();
+        const lastName = (row[lastNameIndex] || "").trim();
+        const email = (row[emailIndex] || "").trim();
 
-        if (originalAccountName) {
-          if (combinedRows.has(originalAccountName)) {
-            const existingEmails = combinedRows.get(originalAccountName) || "";
+        console.log("Processing row:", {
+          originalAccountName,
+          firstName,
+          lastName,
+          email,
+          hasAmpersand: originalAccountName.includes("&"),
+          hasAnd: originalAccountName.includes("and")
+        });
+
+        // Check if this is a child with email
+        const isChildWithEmail = !originalAccountName.toLowerCase().includes(firstName.toLowerCase()) && email !== "";
+        
+        // If it's a child with email, create a separate entry with full name
+        if (isChildWithEmail) {
+          const displayName = `${firstName} ${lastName}`;
+          combinedRows.set(displayName, email);
+          return;
+        }
+
+        // For accounts where both spouses have blank emails, combine their first names
+        if ((originalAccountName.includes("&")) && email === "") {
+          const accountRows = accountGroups.get(originalAccountName) || [];
+          const allEmailsBlank = accountRows.every((r: string[]) => 
+            ((r[emailIndex] || "") as string).trim() === ""
+          );
+          
+          if (allEmailsBlank && accountRows.length > 1) {
+            const firstNames = accountRows
+              .map((r: string[]) => (r[firstNameIndex] || "").trim())
+              .filter((name: string) => name)
+              .join(" and ");
+            const displayName = `${firstNames} ${lastName}`;
+            
+            if (!combinedRows.has(displayName)) {
+              combinedRows.set(displayName, "");
+            }
+            return;
+          }
+        }
+
+        const displayName = email === "" 
+          ? `${firstName} ${lastName}`.trim()
+          : originalAccountName;
+
+        if (displayName) {
+          if (combinedRows.has(displayName)) {
+            const existingEmails = combinedRows.get(displayName) || "";
             if (email && !existingEmails.includes(email)) {
               combinedRows.set(
-                originalAccountName,
+                displayName,
                 existingEmails ? `${existingEmails};${email}` : email
               );
             }
           } else {
-            combinedRows.set(originalAccountName, email);
+            combinedRows.set(displayName, email);
           }
         }
       });
+
+      console.log("7. After forEach");
 
       // Then, modify the account names while preserving uniqueness
       const finalCombinedRows = new Map<string, string>();
       const nameCountMap = new Map<string, number>();
 
-      combinedRows.forEach((emails, originalAccountName) => {
+      combinedRows.forEach((emails: string, originalAccountName: string) => {
         const nameParts = originalAccountName.split(" ");
         let accountName;
 
-        if (nameParts.length > 1) {
-          // Remove the last word entirely
-          accountName = nameParts.slice(0, -1).join(" ");
-        } else {
-          // If there's only one word, keep it as is
+        // Check if this is a child with email
+        const isChildWithEmail = !data.some(row => 
+          ((row[accountNameIndex] || "") as string).toLowerCase().includes(nameParts[0].toLowerCase())
+        ) && emails !== "";
+
+        // Keep full name for children with emails, blank emails, or single-word names
+        if (isChildWithEmail || emails === "" || nameParts.length === 1) {
           accountName = originalAccountName;
+        } else {
+          // Remove last name only for parents/accounts with emails
+          accountName = nameParts.slice(0, -1).join(" ");
         }
+
+        // Replace any remaining "&" with "and"
+        accountName = accountName.replace(/\s*&\s*/g, " and ");
 
         // Use a case-sensitive key for the Map
         const caseSensitiveKey = `${accountName}\0${accountName.toLowerCase()}`;
@@ -166,11 +274,27 @@ export default function Component() {
       // Log the final combined rows map
       console.log("Final Combined Rows Map:", Array.from(finalCombinedRows.entries()));
 
-      // 5. Convert to array and sort blank emails to the bottom
+      // 5. Convert to array and sort blank emails to the bottom, and children with emails after that
       const sortedData = Array.from(finalCombinedRows.entries()).sort(
-        ([, emailA], [, emailB]) => {
-          if (emailA === "" && emailB !== "") return 1;
-          if (emailA !== "" && emailB === "") return -1;
+        ([nameA, emailA], [nameB, emailB]) => {
+          const isChildA = !data.some(row => 
+            ((row[accountNameIndex] || "") as string).toLowerCase().includes(nameA.split(" ")[0].toLowerCase())
+          );
+          const isChildB = !data.some(row => 
+            ((row[accountNameIndex] || "") as string).toLowerCase().includes(nameB.split(" ")[0].toLowerCase())
+          );
+
+          // If one is a child and one isn't, sort children to the bottom
+          if (isChildA !== isChildB) {
+            return isChildA ? 1 : -1;
+          }
+          
+          // If neither is a child, sort blank emails to the bottom
+          if (!isChildA && !isChildB) {
+            if (emailA === "" && emailB !== "") return 1;
+            if (emailA !== "" && emailB === "") return -1;
+          }
+          
           return 0;
         },
       );
@@ -274,34 +398,36 @@ export default function Component() {
               id="processed-data"
               className="border rounded-md overflow-auto max-h-[400px]"
             >
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {processedData[0]?.map((header, index) => (
-                      <TableHead
-                        key={index}
-                        className="px-4 py-2 bg-muted sticky top-0"
-                      >
-                        {header}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {processedData.slice(1).map((row, rowIndex) => (
-                    <TableRow key={rowIndex}>
-                      {row.map((cell, cellIndex) => (
-                        <TableCell
-                          key={cellIndex}
-                          className="px-4 py-2 whitespace-nowrap"
+              {processedData.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {processedData[0]?.map((header, index) => (
+                        <TableHead
+                          key={index}
+                          className="px-4 py-2 bg-muted sticky top-0"
                         >
-                          {cell}
-                        </TableCell>
+                          {header}
+                        </TableHead>
                       ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {processedData.slice(1).map((row, rowIndex) => (
+                      <TableRow key={rowIndex}>
+                        {row.map((cell, cellIndex) => (
+                          <TableCell
+                            key={cellIndex}
+                            className="px-4 py-2 whitespace-nowrap"
+                          >
+                            {cell}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           </div>
         </CardContent>
@@ -313,7 +439,7 @@ export default function Component() {
           >
             Download Processed CSV
           </Button>
-          <a ref={downloadLinkRef} style={{ display: "none" }}>
+          <a ref={downloadLinkRef} className="sr-only">
             Download CSV
           </a>
         </CardFooter>

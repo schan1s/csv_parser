@@ -67,3 +67,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+.hidden-download-link {
+  display: none;
+}
