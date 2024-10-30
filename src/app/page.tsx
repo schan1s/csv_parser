@@ -171,22 +171,21 @@ export default function Component() {
         const lastName = (row[lastNameIndex] || "").trim();
         const email = (row[emailIndex] || "").trim();
 
-        console.log("Processing row:", {
-          originalAccountName,
-          firstName,
-          lastName,
-          email,
-          hasAmpersand: originalAccountName.includes("&"),
-          hasAnd: originalAccountName.includes("and")
-        });
-
         // Check if this is a child with email
         const isChildWithEmail = !originalAccountName.toLowerCase().includes(firstName.toLowerCase()) && email !== "";
         
-        // If it's a child with email, create a separate entry with full name
+        // If it's a child with email, check if the email is already in use
         if (isChildWithEmail) {
-          const displayName = `${firstName} ${lastName}`;
-          combinedRows.set(displayName, email);
+          // Check if this email already exists in any parent row
+          const emailExists = Array.from(combinedRows.values()).some(existingEmail => 
+            existingEmail.split(';').includes(email)
+          );
+          
+          // Only add child row if email is unique
+          if (!emailExists) {
+            const displayName = `${firstName} ${lastName}`;
+            combinedRows.set(displayName, email);
+          }
           return;
         }
 
@@ -296,7 +295,7 @@ export default function Component() {
           }
           
           return 0;
-        },
+        }
       );
 
       const finalData = [
