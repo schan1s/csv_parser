@@ -40,6 +40,8 @@ export default function Component() {
   const [sendAs, setSendAs] = useState<string>("");
   const downloadLinkRef = useRef<HTMLAnchorElement>(null);
   const [emailError, setEmailError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const sanitizeCSVContent = (content: string): string => {
     // Remove any potential harmful characters or formula injections
