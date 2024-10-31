@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,12 @@ export default function Component() {
   const [subject, setSubject] = useState<string>("");
   const [sendAs, setSendAs] = useState<string>("");
   const downloadLinkRef = useRef<HTMLAnchorElement>(null);
+  const [emailError, setEmailError] = useState<string>('');
+
+  const sanitizeCSVContent = (content: string): string => {
+    // Remove any potential harmful characters or formula injections
+    return content.replace(/^[=+\-@\t\r]/g, '');
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -46,7 +52,7 @@ export default function Component() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
-        setCsvContent(content);
+        setCsvContent(sanitizeCSVContent(content));
       };
       reader.readAsText(file);
     }
@@ -335,6 +341,21 @@ export default function Component() {
     setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return email === '' || email.split(';').every(e => emailRegex.test(e.trim()));
+  };
+
+  useEffect(() => {
+    return () => {
+      setCsvContent('');
+      setProcessedData([]);
+      setBcc('');
+      setSubject('');
+      setSendAs('');
+    };
+  }, []);
+
   return (
     <div className="mt-8 mb-16">
       <Card className="w-full max-w-2xl mx-auto relative">
@@ -385,8 +406,16 @@ export default function Component() {
               type="email"
               placeholder="Enter Send As email"
               value={sendAs}
-              onChange={(e) => setSendAs(e.target.value)}
+              onChange={(e) => {
+                setSendAs(e.target.value);
+                if (!validateEmail(e.target.value)) {
+                  setEmailError('Please enter valid email address(es)');
+                } else {
+                  setEmailError('');
+                }
+              }}
             />
+            {emailError && <p className="text-red-500">{emailError}</p>}
           </div>
           <Button onClick={processCSV} className="w-full">
             Process CSV
