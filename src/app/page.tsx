@@ -48,6 +48,7 @@ export default function Component() {
   const [fileError, setFileError] = useState<string>('');
   const [processError, setProcessError] = useState<string>('');
   const [downloadError, setDownloadError] = useState<string>('');
+  const [attachment, setAttachment] = useState<string>("");
 
   const sanitizeCSVContent = (content: string): string => {
     // Remove any potential harmful characters or formula injections
@@ -365,13 +366,14 @@ export default function Component() {
       );
 
       const finalData = [
-        ["Known As", "To", "BCC", "Subject", "Send As"],
+        ["Known As", "To", "BCC", "Subject", "Send As", "Attachment1"],
         ...sortedData.map(([accountName, email]) => [
           accountName,
           email,
           bcc,
           subject,
           sendAs,
+          attachment,
         ]),
       ];
       setProcessedData(finalData);
@@ -435,6 +437,7 @@ export default function Component() {
       setBcc('');
       setSubject('');
       setSendAs('');
+      setAttachment('');
     };
   }, []);
 
@@ -504,6 +507,31 @@ export default function Component() {
                 placeholder="Enter email subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="attachment">Attachment</Label>
+                <div className="relative group">
+                  <span className="cursor-help text-gray-500 hover:text-gray-700">
+                    (?)</span>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-lg p-3 shadow-lg w-64 z-50">
+                    <p className="font-semibold mb-1">How to get a file path:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                      <li>Right-click on your file</li>
+                      <li>Hold Shift and select "Copy as path"</li>
+                      <li>Paste the path here</li>
+                    </ol>
+                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
+                  </div>
+                </div>
+              </div>
+              <Input
+                id="attachment"
+                type="text"
+                placeholder="Enter File Path or leave blank if not applicable"
+                value={attachment}
+                onChange={(e) => setAttachment(e.target.value)}
               />
             </div>
             <Button 
