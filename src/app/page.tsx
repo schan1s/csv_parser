@@ -28,8 +28,19 @@ const Papa = {
     const data = lines.slice(1).map((line) => line.split(","));
     return { data, headers };
   },
-  unparse: (data: any) => {
-    return data.map((row: string[]) => row.join(",")).join("\n");
+  unparse: (data: any, config?: { quotes: boolean; quoteChar: string }) => {
+    return data.map((row: string[]) => 
+      row.map(cell => {
+        // If the cell contains a comma or the quotes option is true, wrap it in quotes
+        if (config?.quotes || cell.includes(',')) {
+          const quoteChar = config?.quoteChar || '"';
+          // Escape any existing quotes in the cell
+          const escapedCell = cell.replace(new RegExp(quoteChar, 'g'), quoteChar + quoteChar);
+          return `${quoteChar}${escapedCell}${quoteChar}`;
+        }
+        return cell;
+      }).join(',')
+    ).join('\n');
   },
 };
 
@@ -395,7 +406,11 @@ export default function Component() {
         throw new Error('No data to download');
       }
 
-      const csvContent = Papa.unparse(processedData);
+      const csvContent = Papa.unparse(processedData, {
+        quotes: true,  // Force quotes around all fields
+        quoteChar: '"'
+      });
+
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
 
