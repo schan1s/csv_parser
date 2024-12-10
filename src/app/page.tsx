@@ -329,12 +329,14 @@ export default function Component() {
         if (nameCountMap.has(caseSensitiveKey)) {
           const count = nameCountMap.get(caseSensitiveKey)! + 1;
           nameCountMap.set(caseSensitiveKey, count);
-          accountName = `${accountName} (${count})`;
+          // Use numbered key internally to maintain uniqueness in the Map
+          const internalKey = `${accountName} (${count})`;
+          // Store with the non-numbered display name
+          finalCombinedRows.set(internalKey, emails);
         } else {
           nameCountMap.set(caseSensitiveKey, 1);
+          finalCombinedRows.set(accountName, emails);
         }
-
-        finalCombinedRows.set(accountName, emails);
       });
 
       // Log the final combined rows map
@@ -368,7 +370,7 @@ export default function Component() {
       const finalData = [
         ["Known As", "To", "BCC", "Subject", "Send As", "Attachment1"],
         ...sortedData.map(([accountName, email]) => [
-          accountName,
+          accountName.replace(/\s*\(\d+\)$/, ''), // Remove the (number) from display
           email,
           bcc,
           subject,
