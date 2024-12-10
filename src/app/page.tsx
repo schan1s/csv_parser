@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // We're using a mock PapaParse here since we can't import external libraries
 const Papa = {
@@ -32,6 +33,8 @@ const Papa = {
   },
 };
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+
 export default function Component() {
   const [csvContent, setCsvContent] = useState<string>("");
   const [processedData, setProcessedData] = useState<string[][]>([]);
@@ -42,33 +45,88 @@ export default function Component() {
   const [emailError, setEmailError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fileError, setFileError] = useState<string>('');
+  const [processError, setProcessError] = useState<string>('');
+  const [downloadError, setDownloadError] = useState<string>('');
 
   const sanitizeCSVContent = (content: string): string => {
     // Remove any potential harmful characters or formula injections
     return content.replace(/^[=+\-@\t\r]/g, '');
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setFileError('');
+      const file = event.target.files?.[0];
+      
+      if (!file) {
+        setFileError('No file selected');
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        setFileError('File is too large (max 5MB)');
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        setFileError('Only CSV files are allowed');
+        return;
+      }
+
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        setCsvContent(sanitizeCSVContent(content));
+      reader.onerror = () => {
+        setFileError('Failed to read file');
       };
+      
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          if (!content) {
+            throw new Error('Empty file content');
+          }
+          setCsvContent(sanitizeCSVContent(content));
+        } catch (error) {
+          setFileError(`Failed to process file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      };
+
       reader.readAsText(file);
+    } catch (error) {
+      setFileError(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const processCSV = () => {
+  const processCSV = async () => {
+    if (isProcessing) return;
+    
     try {
-      const { data, headers } = Papa.parse(csvContent);
-      const uniqueEmails = new Map();
-      
-      if (!Array.isArray(headers) || !Array.isArray(data)) {
-        throw new Error("Invalid CSV structure");
+      setProcessError('');
+      setIsProcessing(true);
+
+      if (!csvContent) {
+        throw new Error('No CSV content to process');
       }
 
+      // Validate required fields
+      if (!sendAs && !validateEmail(sendAs)) {
+        throw new Error('Invalid "Send As" email address');
+      }
+
+      if (bcc && !validateEmail(bcc)) {
+        throw new Error('Invalid BCC email address');
+      }
+
+      // Your existing processing logic
+      const { data, headers } = Papa.parse(csvContent);
+      
+      // Validate CSV structure
+      if (!Array.isArray(headers) || !Array.isArray(data)) {
+        throw new Error('Invalid CSV structure');
+      }
+
+      const uniqueEmails = new Map();
+      
       const accountNameIndex = headers.findIndex((h) => h === "Account Name");
       const firstNameIndex = headers.findIndex((h) => h === "First Name");
       const lastNameIndex = headers.findIndex((h) => h === "Last Name");
@@ -318,34 +376,56 @@ export default function Component() {
       ];
       setProcessedData(finalData);
     } catch (error) {
-      console.error("Error in processCSV:", error);
-      alert("An error occurred while processing the CSV. Please check the console for details.");
+      setProcessError(`Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setProcessedData([]); // Clear any partial results
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const downloadCSV = () => {
-    if (processedData.length === 0) {
-      alert("Please process the CSV first");
-      return;
-    }
+    try {
+      setDownloadError('');
+      
+      if (processedData.length === 0) {
+        throw new Error('No data to download');
+      }
 
-    const csvContent = Papa.unparse(processedData);
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+      const csvContent = Papa.unparse(processedData);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
 
-    if (downloadLinkRef.current) {
+      if (!downloadLinkRef.current) {
+        throw new Error('Download link not available');
+      }
+
       downloadLinkRef.current.href = url;
       downloadLinkRef.current.download = "processed_data.csv";
       downloadLinkRef.current.click();
-    }
 
-    // Clean up the URL object after the download is initiated
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+      // Cleanup
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (error) {
+      setDownloadError(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return email === '' || email.split(';').every(e => emailRegex.test(e.trim()));
+  };
+
+  const getErrorHelp = (error: string): string => {
+    if (error.includes('file size')) {
+      return 'Try splitting your data into smaller files';
+    }
+    if (error.includes('Invalid CSV')) {
+      return 'Please ensure your CSV file is properly formatted';
+    }
+    if (error.includes('email')) {
+      return 'Check that all email addresses are in the correct format';
+    }
+    return 'If the problem persists, please contact support';
   };
 
   useEffect(() => {
@@ -359,126 +439,144 @@ export default function Component() {
   }, []);
 
   return (
-    <div className="mt-8 mb-16">
-      <Card className="w-full max-w-2xl mx-auto relative">
-        <div className="absolute top-0 right-3">
-          <img 
-            src="/images/hope-international-logo.png" 
-            alt="HOPE International Logo" 
-            className="w-40 h-auto"
-          />
-        </div>
-        <CardHeader>
-          <CardTitle>CSV Processor</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="csv-upload">Upload CSV File</Label>
-            <Input
-              id="csv-upload"
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
+    <ErrorBoundary>
+      <div className="mt-8 mb-16">
+        <Card className="w-full max-w-2xl mx-auto relative">
+          <div className="absolute top-0 right-3">
+            <img 
+              src="/images/hope-international-logo.png" 
+              alt="HOPE International Logo" 
+              className="w-40 h-auto"
             />
           </div>
-          <div>
-            <Label htmlFor="bcc">BCC</Label>
-            <Input
-              id="bcc"
-              type="email"
-              placeholder="Enter BCC email"
-              value={bcc}
-              onChange={(e) => setBcc(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="subject">Subject</Label>
-            <Input
-              id="subject"
-              type="text"
-              placeholder="Enter email subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="sendAs">Send As</Label>
-            <Input
-              id="sendAs"
-              type="email"
-              placeholder="Enter Send As email"
-              value={sendAs}
-              onChange={(e) => {
-                setSendAs(e.target.value);
-                if (!validateEmail(e.target.value)) {
-                  setEmailError('Please enter valid email address(es)');
-                } else {
-                  setEmailError('');
-                }
-              }}
-            />
-            {emailError && <p className="text-red-500">{emailError}</p>}
-          </div>
-          <Button onClick={processCSV} className="w-full">
-            Process CSV
-          </Button>
-          <div>
-            <Label htmlFor="processed-data">Processed CSV Data</Label>
-            <div
-              id="processed-data"
-              className="border rounded-md overflow-auto max-h-[400px]"
-            >
-              {processedData.length > 0 && (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {processedData[0]?.map((header, index) => (
-                        <TableHead
-                          key={index}
-                          className="px-4 py-2 bg-muted sticky top-0"
-                        >
-                          {header}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {processedData.slice(1).map((row, rowIndex) => (
-                      <TableRow key={rowIndex}>
-                        {row.map((cell, cellIndex) => (
-                          <TableCell
-                            key={cellIndex}
-                            className="px-4 py-2 whitespace-nowrap"
-                          >
-                            {cell}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+          <CardHeader>
+            <CardTitle>CSV Processor</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="csv-upload">Upload CSV File</Label>
+              <Input
+                id="csv-upload"
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+              />
+              {fileError && (
+                <div className="text-red-500 text-sm mt-1">
+                  <p>{fileError}</p>
+                  <p className="text-sm mt-1">{getErrorHelp(fileError)}</p>
+                </div>
               )}
             </div>
+            <div>
+              <Label htmlFor="bcc">BCC</Label>
+              <Input
+                id="bcc"
+                type="email"
+                placeholder="Enter BCC email"
+                value={bcc}
+                onChange={(e) => setBcc(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                type="text"
+                placeholder="Enter email subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="sendAs">Send As</Label>
+              <Input
+                id="sendAs"
+                type="email"
+                placeholder="Enter Send As email"
+                value={sendAs}
+                onChange={(e) => {
+                  setSendAs(e.target.value);
+                  if (!validateEmail(e.target.value)) {
+                    setEmailError('Please enter valid email address(es)');
+                  } else {
+                    setEmailError('');
+                  }
+                }}
+              />
+              {emailError && <p className="text-red-500">{emailError}</p>}
+            </div>
+            <Button 
+              onClick={processCSV} 
+              disabled={isProcessing || !csvContent}
+              className="w-full"
+            >
+              {isProcessing ? 'Processing...' : 'Process CSV'}
+            </Button>
+            {processError && (
+              <p className="text-red-500 text-sm mt-1">{processError}</p>
+            )}
+            <div>
+              <Label htmlFor="processed-data">Processed CSV Data</Label>
+              <div
+                id="processed-data"
+                className="border rounded-md overflow-auto max-h-[400px]"
+              >
+                {processedData.length > 0 && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {processedData[0]?.map((header, index) => (
+                          <TableHead
+                            key={index}
+                            className="px-4 py-2 bg-muted sticky top-0"
+                          >
+                            {header}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {processedData.slice(1).map((row, rowIndex) => (
+                        <TableRow key={rowIndex}>
+                          {row.map((cell, cellIndex) => (
+                            <TableCell
+                              key={cellIndex}
+                              className="px-4 py-2 whitespace-nowrap"
+                            >
+                              {cell}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col space-y-4">
+            <Button
+              onClick={downloadCSV}
+              className="w-full"
+              disabled={processedData.length === 0}
+            >
+              Download Processed CSV
+            </Button>
+            {downloadError && (
+              <p className="text-red-500 text-sm mt-1">{downloadError}</p>
+            )}
+            <a ref={downloadLinkRef} className="sr-only">
+              Download CSV
+            </a>
+          </CardFooter>
+        </Card>
+        {processedData.length > 0 && (
+          <div className="mt-8 text-center text-sm text-gray-500">
+            CSV processing complete. You can now download the processed file.
           </div>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <Button
-            onClick={downloadCSV}
-            className="w-full"
-            disabled={processedData.length === 0}
-          >
-            Download Processed CSV
-          </Button>
-          <a ref={downloadLinkRef} className="sr-only">
-            Download CSV
-          </a>
-        </CardFooter>
-      </Card>
-      {processedData.length > 0 && (
-        <div className="mt-8 text-center text-sm text-gray-500">
-          CSV processing complete. You can now download the processed file.
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
