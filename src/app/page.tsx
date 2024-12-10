@@ -518,8 +518,8 @@ export default function Component() {
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-lg p-3 shadow-lg w-64 z-50">
                     <p className="font-semibold mb-1">How to get a file path:</p>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
-                      <li>Right-click on your file</li>
-                      <li>Hold Shift and select "Copy as path"</li>
+                      <li>Hold Shift and right-click on your file</li>
+                      <li>Select "Copy as path"</li>
                       <li>Paste the path here</li>
                     </ol>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
