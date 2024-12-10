@@ -469,6 +469,24 @@ export default function Component() {
               )}
             </div>
             <div>
+              <Label htmlFor="sendAs">Send As</Label>
+              <Input
+                id="sendAs"
+                type="email"
+                placeholder="Enter Send As email"
+                value={sendAs}
+                onChange={(e) => {
+                  setSendAs(e.target.value);
+                  if (!validateEmail(e.target.value)) {
+                    setEmailError('Please enter valid email address(es)');
+                  } else {
+                    setEmailError('');
+                  }
+                }}
+              />
+              {emailError && <p className="text-red-500">{emailError}</p>}
+            </div>
+            <div>
               <Label htmlFor="bcc">BCC</Label>
               <Input
                 id="bcc"
@@ -487,24 +505,6 @@ export default function Component() {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
               />
-            </div>
-            <div>
-              <Label htmlFor="sendAs">Send As</Label>
-              <Input
-                id="sendAs"
-                type="email"
-                placeholder="Enter Send As email"
-                value={sendAs}
-                onChange={(e) => {
-                  setSendAs(e.target.value);
-                  if (!validateEmail(e.target.value)) {
-                    setEmailError('Please enter valid email address(es)');
-                  } else {
-                    setEmailError('');
-                  }
-                }}
-              />
-              {emailError && <p className="text-red-500">{emailError}</p>}
             </div>
             <Button 
               onClick={processCSV} 
