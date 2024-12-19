@@ -53,7 +53,8 @@ export default function Component() {
   const [subject, setSubject] = useState<string>("");
   const [sendAs, setSendAs] = useState<string>("");
   const downloadLinkRef = useRef<HTMLAnchorElement>(null);
-  const [emailError, setEmailError] = useState<string>('');
+  const [sendAsError, setSendAsError] = useState<string>('');
+  const [bccError, setBccError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileError, setFileError] = useState<string>('');
@@ -109,24 +110,43 @@ export default function Component() {
     }
   };
 
+  const validateFields = (): boolean => {
+    let isValid = true;
+
+    // Validate Send As (required field)
+    if (!sendAs || !validateEmail(sendAs)) {
+      setSendAsError('Please enter a valid email address');
+      isValid = false;
+    } else {
+      setSendAsError('');
+    }
+
+    // Validate BCC (optional field)
+    if (bcc && !validateEmail(bcc)) {
+      setBccError('Please enter a valid email address');
+      isValid = false;
+    } else {
+      setBccError('');
+    }
+
+    return isValid;
+  };
+
   const processCSV = async () => {
     if (isProcessing) return;
     
     try {
       setProcessError('');
+      
+      // Validate fields before processing
+      if (!validateFields()) {
+        return; // Stop processing if validation fails
+      }
+
       setIsProcessing(true);
 
       if (!csvContent) {
         throw new Error('No CSV content to process');
-      }
-
-      // Validate required fields
-      if (!sendAs && !validateEmail(sendAs)) {
-        throw new Error('Invalid "Send As" email address');
-      }
-
-      if (bcc && !validateEmail(bcc)) {
-        throw new Error('Invalid BCC email address');
       }
 
       // Your existing processing logic
@@ -444,6 +464,7 @@ export default function Component() {
     if (error.includes('email')) {
       return 'Check that all email addresses are in the correct format';
     }
+    return ''; // Default return for when no specific help message is needed
   };
 
   useEffect(() => {
@@ -474,12 +495,15 @@ export default function Component() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="csv-upload">Upload CSV File</Label>
-              <Input
-                id="csv-upload"
-                type="file"
-                accept=".csv"
-                onChange={handleFileUpload}
-              />
+              <div className="relative">
+                <Input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80 file:cursor-pointer cursor-pointer h-9 file:my-auto file:absolute file:top-1/2 file:transform file:-translate-y-1/2 file:left-2 pl-24"
+                />
+              </div>
               {fileError && (
                 <div className="text-red-500 text-sm mt-1">
                   <p>{fileError}</p>
@@ -494,16 +518,13 @@ export default function Component() {
                 type="email"
                 placeholder="Enter Send As email"
                 value={sendAs}
-                onChange={(e) => {
-                  setSendAs(e.target.value);
-                  if (!validateEmail(e.target.value)) {
-                    setEmailError('Please enter a valid email address');
-                  } else {
-                    setEmailError('');
-                  }
-                }}
+                onChange={(e) => setSendAs(e.target.value)}
               />
-              {emailError && <p className="text-red-500" style={{ paddingTop: '8px' , fontSize: '14px' }}>{emailError}</p>}
+              {sendAsError && (
+                <p className="text-red-500 text-sm mt-2" style={{ paddingTop: '8px' }}>
+                  {sendAsError}
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="bcc">BCC</Label>
@@ -514,6 +535,11 @@ export default function Component() {
                 value={bcc}
                 onChange={(e) => setBcc(e.target.value)}
               />
+              {bccError && (
+                <p className="text-red-500 text-sm mt-2" style={{ paddingTop: '8px' }}>
+                  {bccError}
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="subject">Subject</Label>
@@ -531,13 +557,13 @@ export default function Component() {
                 <div className="relative group">
                   <span className="cursor-help text-gray-500 hover:text-gray-700">
                     (?)</span>
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-lg p-3 shadow-lg w-64 z-50">
-                    <p className="font-semibold mb-1">How to get a file path:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
-                      <li>Hold Shift and right-click on your file</li>
-                      <li>Select "Copy as path"</li>
-                      <li>Paste the path here</li>
-                      <li>Remove the quotation marks from each end of the pasted path</li>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-lg p-3 shadow-lg w-80 z-50">
+                    <p className="font-semibold mb-1 text-base">How to get a file path:</p>
+                    <ol className="list-decimal pl-8 space-y-1 text-sm text-gray-600">
+                      <li className="pl-1">Hold Shift and right-click on your file</li>
+                      <li className="pl-1">Select "Copy as path"</li>
+                      <li className="pl-1">Paste the path here</li>
+                      <li className="pl-1">Remove the quotation marks from each end of the pasted path</li>
                     </ol>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
                   </div>
