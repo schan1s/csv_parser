@@ -444,7 +444,6 @@ export default function Component() {
     if (error.includes('email')) {
       return 'Check that all email addresses are in the correct format';
     }
-    return 'If the problem persists, please contact support';
   };
 
   useEffect(() => {
@@ -498,13 +497,13 @@ export default function Component() {
                 onChange={(e) => {
                   setSendAs(e.target.value);
                   if (!validateEmail(e.target.value)) {
-                    setEmailError('Please enter valid email address(es)');
+                    setEmailError('Please enter a valid email address');
                   } else {
                     setEmailError('');
                   }
                 }}
               />
-              {emailError && <p className="text-red-500">{emailError}</p>}
+              {emailError && <p className="text-red-500" style={{ paddingTop: '8px' , fontSize: '14px' }}>{emailError}</p>}
             </div>
             <div>
               <Label htmlFor="bcc">BCC</Label>
@@ -538,6 +537,7 @@ export default function Component() {
                       <li>Hold Shift and right-click on your file</li>
                       <li>Select "Copy as path"</li>
                       <li>Paste the path here</li>
+                      <li>Remove the quotation marks from each end of the pasted path</li>
                     </ol>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
                   </div>
@@ -559,7 +559,7 @@ export default function Component() {
               {isProcessing ? 'Processing...' : 'Process CSV'}
             </Button>
             {processError && (
-              <p className="text-red-500 text-sm mt-1">{processError}</p>
+              <p className="text-red-500 text-sm mt-1" style={{ paddingTop: '20px' }}>{processError}</p>
             )}
             <div>
               <Label htmlFor="processed-data">Processed CSV Data</Label>
