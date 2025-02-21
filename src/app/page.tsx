@@ -62,6 +62,44 @@ export default function Component() {
   const [downloadError, setDownloadError] = useState<string>('');
   const [attachment, setAttachment] = useState<string>("");
 
+  const [sendAsOptions] = useState<Array<{value: string, label: string}>>([
+    { 
+      value: process.env.NEXT_PUBLIC_PMCKEE_EMAIL || '', 
+      label: "Patrick McKee" 
+    },
+    { 
+      value: process.env.NEXT_PUBLIC_ASIEVE_EMAIL || '', 
+      label: "Amy Sieve" 
+    },
+    { 
+      value: process.env.NEXT_PUBLIC_DONOR_RELATIONS_EMAIL || '', 
+      label: "Donor Relations Team" 
+    },
+    { 
+      value: process.env.NEXT_PUBLIC_DEVELOPMENT_EMAIL || '', 
+      label: "Development Team" 
+    },
+  ]);
+  
+  const [bccOptions] = useState<Array<{value: string, label: string}>>([
+    { 
+      value: process.env.NEXT_PUBLIC_PMCKEE_BCC_EMAIL || '', 
+      label: "Patrick McKee" 
+    },
+    { 
+      value: process.env.NEXT_PUBLIC_ASIEVE_EMAIL || '', 
+      label: "Amy Sieve" 
+    },
+    { 
+      value: process.env.NEXT_PUBLIC_DONOR_RELATIONS_EMAIL || '', 
+      label: "Donor Relations Team" 
+    },
+    { 
+      value: process.env.NEXT_PUBLIC_DEVELOPMENT_EMAIL || '', 
+      label: "Development Team" 
+    },
+  ]);
+
   const sanitizeCSVContent = (content: string): string => {
     // Remove any potential harmful characters or formula injections
     return content.replace(/^[=+\-@\t\r]/g, '');
@@ -329,11 +367,56 @@ export default function Component() {
 
       console.log("7. After forEach");
 
-      // Then, modify the account names while preserving uniqueness
+      // Create a set of all full names (firstName + lastName) in the data
+      const allNames = new Set(
+        data.map((row: string[]) => {
+          const firstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
+          const lastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
+          return `${firstName} ${lastName}`.trim();
+        }).filter(name => name)
+      );
+
       const finalCombinedRows = new Map<string, string>();
       const nameCountMap = new Map<string, number>();
 
       combinedRows.forEach((emails: string, originalAccountName: string) => {
+        // Clean up the account name
+        originalAccountName = originalAccountName
+          .replace(/\s*household\s*/gi, "")
+          .trim();
+        
+        console.log("\n--- Processing Account ---");
+        console.log("Original Account Name:", originalAccountName);
+
+        if (originalAccountName.includes("Chris") || originalAccountName.includes("Holly")) {
+          console.log("Found Chris/Holly account!");
+          console.log("Emails:", emails);
+          
+          const names = originalAccountName.split("&").map(name => name.trim());
+          console.log("Split names:", names);
+
+          const validNames = names.filter(name => {
+            const nameParts = name.trim().split(" ");
+            const firstName = nameParts[0].toLowerCase();
+            const lastName = nameParts[nameParts.length - 1].toLowerCase();
+            
+            console.log(`Checking name: ${firstName} ${lastName}`);
+            
+            const exists = data.some(row => {
+              const rowFirstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
+              const rowLastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
+              const match = rowFirstName === firstName && rowLastName === lastName;
+              if (match) console.log(`✓ Found match for ${firstName} ${lastName}`);
+              return match;
+            });
+            
+            if (!exists) console.log(`✗ No match found for ${firstName} ${lastName}`);
+            return exists;
+          });
+          
+          console.log("Valid names after filtering:", validNames);
+        }
+
         const nameParts = originalAccountName.split(" ");
         let accountName;
 
@@ -346,8 +429,53 @@ export default function Component() {
         if (isChildWithEmail || emails === "" || nameParts.length === 1) {
           accountName = originalAccountName;
         } else {
-          // Remove last name only for parents/accounts with emails
-          accountName = nameParts.slice(0, -1).join(" ");
+          // For joint accounts, only keep names that exist in the data
+          if (originalAccountName.includes("&")) {
+            const names = originalAccountName.split("&").map(name => name.trim());
+            console.log("Processing names:", names); // Debug log
+
+            // Get the shared last name from the last part of the account name
+            const sharedLastName = originalAccountName.split(" ").pop()?.toLowerCase();
+            
+            const validNames = names.filter(name => {
+              const nameParts = name.trim().split(" ");
+              // If there's only one part, it's just a first name
+              const firstName = nameParts.length === 1 
+                ? nameParts[0].toLowerCase()
+                : nameParts.slice(0, -1).join(" ").toLowerCase();
+              const lastName = sharedLastName || ""; // Use shared last name
+              
+              console.log(`Checking name: ${firstName} ${lastName}`);
+              
+              const exists = data.some(row => {
+                const rowFirstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
+                const rowLastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
+                const match = rowFirstName === firstName && rowLastName === lastName;
+                // Debug log
+                if (match) console.log(`Found match for ${firstName} ${lastName}`);
+                return match;
+              });
+              
+              if (!exists) console.log(`✗ No match found for ${firstName} ${lastName}`);
+              return exists;
+            });
+            
+            console.log("Valid names:", validNames); // Debug log
+            
+            // After filtering valid names, keep the original first name(s)
+            const displayNames = validNames.map(name => {
+              const parts = name.trim().split(" ");
+              // If there's only one part, use it as is
+              return parts.length === 1 ? parts[0] : parts.slice(0, -1).join(" ");
+            });
+            
+            accountName = displayNames.length > 0 
+              ? displayNames.join(" and ")
+              : nameParts[0];
+          } else {
+            // For non-joint accounts, just use the first name
+            accountName = nameParts[0];
+          }
         }
 
         // Replace any remaining "&" with "and"
@@ -478,6 +606,42 @@ export default function Component() {
     };
   }, []);
 
+  // Add handlers for input changes
+  const handleSendAsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // If the input matches an email exactly, use it
+    if (sendAsOptions.some(option => option.value === value)) {
+      setSendAs(value);
+      return;
+    }
+    // If the input matches a label exactly, use its corresponding email
+    const matchByLabel = sendAsOptions.find(option => 
+      option.label.toLowerCase() === value.toLowerCase()
+    );
+    if (matchByLabel) {
+      setSendAs(matchByLabel.value);
+      return;
+    }
+    // Otherwise, just set the raw input value
+    setSendAs(value);
+  };
+
+  const handleBccChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (bccOptions.some(option => option.value === value)) {
+      setBcc(value);
+      return;
+    }
+    const matchByLabel = bccOptions.find(option => 
+      option.label.toLowerCase() === value.toLowerCase()
+    );
+    if (matchByLabel) {
+      setBcc(matchByLabel.value);
+      return;
+    }
+    setBcc(value);
+  };
+
   return (
     <ErrorBoundary>
       <div className="mt-8 mb-16">
@@ -513,30 +677,46 @@ export default function Component() {
             </div>
             <div>
               <Label htmlFor="sendAs">Send As</Label>
-              <Input
-                id="sendAs"
-                type="email"
-                placeholder="Enter Send As email"
-                value={sendAs}
-                onChange={(e) => setSendAs(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  list="sendAsOptions"
+                  id="sendAs"
+                  value={sendAs}
+                  onChange={handleSendAsChange}
+                  placeholder="Start typing name or email..."
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <datalist id="sendAsOptions">
+                  {sendAsOptions.map((option) => (
+                    <option key={option.value} value={option.value} label={option.label} />
+                  ))}
+                </datalist>
+              </div>
               {sendAsError && (
-                <p className="text-red-500 text-sm mt-2" style={{ paddingTop: '8px' }}>
+                <p className="text-red-500 text-sm mt-2">
                   {sendAsError}
                 </p>
               )}
             </div>
             <div>
               <Label htmlFor="bcc">BCC</Label>
-              <Input
-                id="bcc"
-                type="email"
-                placeholder="Enter BCC email"
-                value={bcc}
-                onChange={(e) => setBcc(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  list="bccOptions"
+                  id="bcc"
+                  value={bcc}
+                  onChange={handleBccChange}
+                  placeholder="Start typing name or email..."
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <datalist id="bccOptions">
+                  {bccOptions.map((option) => (
+                    <option key={option.value} value={option.value} label={option.label} />
+                  ))}
+                </datalist>
+              </div>
               {bccError && (
-                <p className="text-red-500 text-sm mt-2" style={{ paddingTop: '8px' }}>
+                <p className="text-red-500 text-sm mt-2">
                   {bccError}
                 </p>
               )}
