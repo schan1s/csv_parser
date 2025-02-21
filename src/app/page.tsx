@@ -405,12 +405,19 @@ export default function Component() {
             const exists = data.some(row => {
               const rowFirstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
               const rowLastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
-              const match = rowFirstName === firstName && rowLastName === lastName;
-              if (match) console.log(`✓ Found match for ${firstName} ${lastName}`);
-              return match;
+              const rowAccountName = ((row[accountNameIndex] || "") as string)
+                .replace(/\s*household\s*/gi, "")
+                .trim()
+                .toLowerCase();
+              
+              // Match both the name AND ensure it belongs to the current account
+              const nameMatches = rowFirstName === firstName && rowLastName === lastName;
+              const accountMatches = rowAccountName === originalAccountName.toLowerCase();
+              
+              return nameMatches && accountMatches;
             });
             
-            if (!exists) console.log(`✗ No match found for ${firstName} ${lastName}`);
+            if (!exists) console.log(`✗ No match found for ${firstName} ${lastName} in account ${originalAccountName}`);
             return exists;
           });
           
@@ -447,16 +454,23 @@ export default function Component() {
               
               console.log(`Checking name: ${firstName} ${lastName}`);
               
+              // Modified to check if the name belongs to the current account
               const exists = data.some(row => {
                 const rowFirstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
                 const rowLastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
-                const match = rowFirstName === firstName && rowLastName === lastName;
-                // Debug log
-                if (match) console.log(`Found match for ${firstName} ${lastName}`);
-                return match;
+                const rowAccountName = ((row[accountNameIndex] || "") as string)
+                  .replace(/\s*household\s*/gi, "")
+                  .trim()
+                  .toLowerCase();
+                
+                // Match both the name AND ensure it belongs to the current account
+                const nameMatches = rowFirstName === firstName && rowLastName === lastName;
+                const accountMatches = rowAccountName === originalAccountName.toLowerCase();
+                
+                return nameMatches && accountMatches;
               });
               
-              if (!exists) console.log(`✗ No match found for ${firstName} ${lastName}`);
+              if (!exists) console.log(`✗ No match found for ${firstName} ${lastName} in account ${originalAccountName}`);
               return exists;
             });
             
