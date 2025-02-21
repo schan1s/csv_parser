@@ -743,7 +743,6 @@ export default function Component() {
                       <li className="pl-1">Hold Shift and right-click on your file</li>
                       <li className="pl-1">Select "Copy as path"</li>
                       <li className="pl-1">Paste the path here</li>
-                      <li className="pl-1">Remove the quotation marks from each end of the pasted path</li>
                     </ol>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
                   </div>
