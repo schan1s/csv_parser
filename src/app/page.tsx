@@ -63,42 +63,57 @@ export default function Component() {
   const [attachment, setAttachment] = useState<string>("");
 
   const [sendAsOptions] = useState<Array<{value: string, label: string}>>([
-    { 
-      value: process.env.NEXT_PUBLIC_PMCKEE_EMAIL || '', 
-      label: "Patrick McKee" 
-    },
-    { 
-      value: process.env.NEXT_PUBLIC_ASIEVE_EMAIL || '', 
-      label: "Amy Sieve" 
-    },
-    { 
-      value: process.env.NEXT_PUBLIC_DONOR_RELATIONS_EMAIL || '', 
-      label: "Donor Relations Team" 
-    },
-    { 
-      value: process.env.NEXT_PUBLIC_DEVELOPMENT_EMAIL || '', 
-      label: "Development Team" 
-    },
+    { value: "abaker@hopeinternational.org", label: "Addison Baker" },
+    { value: "aclark@homes4hope.org", label: "Abby Murphy" },
+    { value: "ahartman@hopeinternational.org", label: "Amy Hartman" },
+    { value: "anardozzi@hopeinternational.org", label: "Amy Nardozzi" },
+    { value: "aschunk@hopeinternational.org", label: "Adrian Schunk" },
+    { value: "asheaffer@hopeinternational.org", label: "Ashley Sheaffer" },
+    { value: "asieve@hopeinternational.org", label: "Amy Sieve" },
+    { value: "azappitella@hopeinternational.org", label: "Addison Zappitella Hansen" },
+    { value: "bboycan@hopeinternational.org", label: "Brian Boycan" },
+    { value: "bholley@hopeinternational.org", label: "Bridgette Holley" },
+    { value: "cbyrne@hopeinternational.org", label: "Cheryl Byrne" },
+    { value: "DBirkey@Hopeinternational.org", label: "Deborah Birkey" },
+    { value: "dcummings@hopeinternational.org", label: "Destiney Cummings" },
+    { value: "dfarr@hopeinternational.org", label: "Donna Farr" },
+    { value: "dholtry@hopeinternational.org", label: "Drake Holtry" },
+    { value: "edunham@hopeinternational.org", label: "Erica Dunham" },
+    { value: "EQuaile@Hopeinternational.org", label: "Erika Quaile" },
+    { value: "EWoodman@Hopeinternational.org", label: "Elizabeth Woodman" },
+    { value: "fmensah@hopeinternational.org", label: "Fantasia Mensah" },
+    { value: "gbrent@hopeinternational.org", label: "Grace Brent" },
+    { value: "gschrader@hopeinternational.org", label: "Grace Schrader" },
+    { value: "hgarcia@hopeinternational.org", label: "Hannah Garcia" },
+    { value: "hschundler@hopeinternational.org", label: "Hannah Schundler" },
+    { value: "HSmith@Hopeinternational.org", label: "Haley Smith" },
+    { value: "HWylie@Hopeinternational.org", label: "Holly Wylie" },
+    { value: "JBeachy@Hopeinternational.org", label: "Jen Beachy" },
+    { value: "JPage@hopeinternational.org", label: "Jenni Page" },
+    { value: "JTang@Hopeinternational.org", label: "Joe Tang" },
+    { value: "kblazanin@hopeinternational.org", label: "Kendall Blazanin" },
+    { value: "KFox@Hopeinternational.org", label: "Kelsey Fox" },
+    { value: "kmelu@hopeinternational.org", label: "Kristi Melu" },
+    { value: "kvinton@hopeinternational.org", label: "Kristin Vinton" },
+    { value: "kwalton@hopeinternational.org", label: "Katrina Walton" },
+    { value: "lchambers@hopeinternational.org", label: "Lori Chambers" },
+    { value: "LCooper@Hopeinternational.org", label: "Laura Cooper" },
+    { value: "mbarnett@hopeinternational.org", label: "Megan Barnett" },
+    { value: "mdebuse@hopeinternational.org", label: "Megan DeBuse" },
+    { value: "mdereu@hopeinternational.org", label: "Mariah DeReu" },
+    { value: "mhaugen@hopeinternational.org", label: "Mark Haugen" },
+    { value: "msommers@hopeinternational.org", label: "Maya Sommers" },
+    { value: "mwood@hopeinternational.org", label: "Maya Wood" },
+    { value: "pcastillo@hopeinternational.org", label: "Pamela Castillo" },
+    { value: "PGreer@Hopeinternational.org", label: "Peter Greer" },
+    { value: "pmckee@hopeinternational.org", label: "Patrick McKee" },
+    { value: "PSmith@Hopeinternational.org", label: "Phil Smith" },
+    { value: "pyoon@hopeinternational.org", label: "Priscilla Yoon" },
+    { value: "rwilliams@hopeinternational.org", label: "Robyn Williams" },
+    { value: "srussell@hopeinternational.org", label: "Stacie Zakem Russell" }
   ]);
-  
-  const [bccOptions] = useState<Array<{value: string, label: string}>>([
-    { 
-      value: process.env.NEXT_PUBLIC_PMCKEE_BCC_EMAIL || '', 
-      label: "Patrick McKee" 
-    },
-    { 
-      value: process.env.NEXT_PUBLIC_ASIEVE_EMAIL || '', 
-      label: "Amy Sieve" 
-    },
-    { 
-      value: process.env.NEXT_PUBLIC_DONOR_RELATIONS_EMAIL || '', 
-      label: "Donor Relations Team" 
-    },
-    { 
-      value: process.env.NEXT_PUBLIC_DEVELOPMENT_EMAIL || '', 
-      label: "Development Team" 
-    },
-  ]);
+
+  const [bccOptions] = useState<Array<{value: string, label: string}>>([]);
 
   const sanitizeCSVContent = (content: string): string => {
     // Remove any potential harmful characters or formula injections
@@ -720,7 +735,7 @@ export default function Component() {
                   id="bcc"
                   value={bcc}
                   onChange={handleBccChange}
-                  placeholder="Start typing name or email..."
+                  placeholder="Enter BCC email"
                   className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <datalist id="bccOptions">
