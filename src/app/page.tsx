@@ -403,115 +403,48 @@ export default function Component() {
       const nameCountMap = new Map<string, number>();
 
       combinedRows.forEach((emails: string, originalAccountName: string) => {
-        // Clean up the account name
+        let accountName: string = originalAccountName; // Initialize with default value
+        
+        // Clean up the account name just for relationship checking
         originalAccountName = originalAccountName
           .replace(/\s*household\s*/gi, "")
           .trim();
-        
-        console.log("\n--- Processing Account ---");
-        console.log("Original Account Name:", originalAccountName);
 
-        if (originalAccountName.includes("Chris") || originalAccountName.includes("Holly")) {
-          console.log("Found Chris/Holly account!");
-          console.log("Emails:", emails);
-          
-          const names = originalAccountName.split("&").map(name => name.trim());
-          console.log("Split names:", names);
-
-          const validNames = names.filter(name => {
-            const nameParts = name.trim().split(" ");
-            const firstName = nameParts[0].toLowerCase();
-            const lastName = nameParts[nameParts.length - 1].toLowerCase();
-            
-            console.log(`Checking name: ${firstName} ${lastName}`);
-            
-            const exists = data.some(row => {
-              const rowFirstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
-              const rowLastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
-              const rowAccountName = ((row[accountNameIndex] || "") as string)
-                .replace(/\s*household\s*/gi, "")
-                .trim()
-                .toLowerCase();
-              
-              // Match both the name AND ensure it belongs to the current account
-              const nameMatches = rowFirstName === firstName && rowLastName === lastName;
-              const accountMatches = rowAccountName === originalAccountName.toLowerCase();
-              
-              return nameMatches && accountMatches;
-            });
-            
-            if (!exists) console.log(`✗ No match found for ${firstName} ${lastName} in account ${originalAccountName}`);
-            return exists;
+        if (originalAccountName.includes("&")) {
+          // Find all rows that belong to this account
+          const accountRows = data.filter(row => {
+            const rowAccountName = ((row[accountNameIndex] || "") as string)
+              .replace(/\s*household\s*/gi, "")
+              .trim()
+              .toLowerCase();
+            return rowAccountName === originalAccountName.toLowerCase();
           });
-          
-          console.log("Valid names after filtering:", validNames);
-        }
 
-        const nameParts = originalAccountName.split(" ");
-        let accountName;
+          // Get only the parent names (those that appear in account name)
+          const parentNames = accountRows
+            .filter((row: string[]) => {
+              const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
+              return originalAccountName.toLowerCase().includes(firstName);
+            })
+            .map((row: string[]) => {
+              const firstName = ((row[firstNameIndex] || "") as string).trim();
+              return firstName;
+            });
 
-        // Check if this is a child with email
-        const isChildWithEmail = !data.some(row => 
-          ((row[accountNameIndex] || "") as string).toLowerCase().includes(nameParts[0].toLowerCase())
-        ) && emails !== "";
-
-        // Keep full name for children with emails, blank emails, or single-word names
-        if (isChildWithEmail || emails === "" || nameParts.length === 1) {
-          accountName = originalAccountName;
+          // Create display name using just parent names
+          accountName = parentNames.join(" and ");
         } else {
-          // For joint accounts, only keep names that exist in the data
-          if (originalAccountName.includes("&")) {
-            const names = originalAccountName.split("&").map(name => name.trim());
-            console.log("Processing names:", names); // Debug log
+          // For single accounts, use the First Name from the data
+          const matchingRow = data.find(row => {
+            const rowAccountName = ((row[accountNameIndex] || "") as string)
+              .replace(/\s*household\s*/gi, "")
+              .trim()
+              .toLowerCase();
+            return rowAccountName === originalAccountName.toLowerCase();
+          });
 
-            // Get the shared last name from the last part of the account name
-            const sharedLastName = originalAccountName.split(" ").pop()?.toLowerCase();
-            
-            const validNames = names.filter(name => {
-              const nameParts = name.trim().split(" ");
-              // If there's only one part, it's just a first name
-              const firstName = nameParts.length === 1 
-                ? nameParts[0].toLowerCase()
-                : nameParts.slice(0, -1).join(" ").toLowerCase();
-              const lastName = sharedLastName || ""; // Use shared last name
-              
-              console.log(`Checking name: ${firstName} ${lastName}`);
-              
-              // Modified to check if the name belongs to the current account
-              const exists = data.some(row => {
-                const rowFirstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
-                const rowLastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
-                const rowAccountName = ((row[accountNameIndex] || "") as string)
-                  .replace(/\s*household\s*/gi, "")
-                  .trim()
-                  .toLowerCase();
-                
-                // Match both the name AND ensure it belongs to the current account
-                const nameMatches = rowFirstName === firstName && rowLastName === lastName;
-                const accountMatches = rowAccountName === originalAccountName.toLowerCase();
-                
-                return nameMatches && accountMatches;
-              });
-              
-              if (!exists) console.log(`✗ No match found for ${firstName} ${lastName} in account ${originalAccountName}`);
-              return exists;
-            });
-            
-            console.log("Valid names:", validNames); // Debug log
-            
-            // After filtering valid names, keep the original first name(s)
-            const displayNames = validNames.map(name => {
-              const parts = name.trim().split(" ");
-              // If there's only one part, use it as is
-              return parts.length === 1 ? parts[0] : parts.slice(0, -1).join(" ");
-            });
-            
-            accountName = displayNames.length > 0 
-              ? displayNames.join(" and ")
-              : nameParts[0];
-          } else {
-            // For non-joint accounts, just use the first name
-            accountName = nameParts[0];
+          if (matchingRow) {
+            accountName = ((matchingRow[firstNameIndex] || "") as string).trim();
           }
         }
 
