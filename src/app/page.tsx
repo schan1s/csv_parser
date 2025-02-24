@@ -191,9 +191,17 @@ export default function Component() {
     try {
       setProcessError('');
       
+      // More thorough cleaning of the attachment path
+      const cleanedAttachment = attachment
+        .trim()
+        .replace(/^["']|["']$/g, ''); // This will remove single or double quotes from start and end
+      
+      console.log('Original attachment:', attachment); // Debug log
+      console.log('Cleaned attachment:', cleanedAttachment); // Debug log
+      
       // Validate fields before processing
       if (!validateFields()) {
-        return; // Stop processing if validation fails
+        return;
       }
 
       setIsProcessing(true);
@@ -558,12 +566,12 @@ export default function Component() {
       const finalData = [
         ["Known As", "To", "BCC", "Subject", "Send As", "Attachment1"],
         ...sortedData.map(([accountName, email]) => [
-          accountName.replace(/\s*\(\d+\)$/, ''), // Remove the (number) from display
+          accountName.replace(/\s*\(\d+\)$/, ''),
           email,
           bcc,
           subject,
           sendAs,
-          attachment,
+          cleanedAttachment,
         ]),
       ];
       setProcessedData(finalData);
