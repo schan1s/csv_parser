@@ -452,7 +452,15 @@ export default function Component() {
           });
 
           if (matchingRow) {
-            accountName = ((matchingRow[firstNameIndex] || "") as string).trim();
+            const firstName = ((matchingRow[firstNameIndex] || "") as string).trim();
+            const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
+            
+            // Use full name only for blank email entries
+            if (emails === "") {
+              accountName = `${firstName} ${lastName}`.trim();
+            } else {
+              accountName = firstName;
+            }
           }
         }
 
