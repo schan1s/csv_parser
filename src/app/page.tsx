@@ -195,9 +195,15 @@ export default function Component() {
       const cleanedAttachment = attachment
         .trim()
         .replace(/^["']|["']$/g, ''); // This will remove single or double quotes from start and end
-      
+      const replaceTextInQuotes = (text: string) => {
+        // Find anything between double quotes and replace with bubblegum
+        const findTextBetweenQuotes = /"[^"]*"/g;
+        return text.replace(findTextBetweenQuotes, 'bubblegum');
+      };
+        
+      const extraCleanedAttachment = replaceTextInQuotes(cleanedAttachment);      
       console.log('Original attachment:', attachment); // Debug log
-      console.log('Cleaned attachment:', cleanedAttachment); // Debug log
+      console.log('Cleaned attachment:', extraCleanedAttachment); // Debug log
       
       // Validate fields before processing
       if (!validateFields()) {
@@ -210,8 +216,10 @@ export default function Component() {
         throw new Error('No CSV content to process');
       }
 
+      const cleanedContent = csvContent.replace(/"[^"]*"/g, 'emptyField');
+
       // Your existing processing logic
-      const { data, headers } = Papa.parse(csvContent);
+      const { data, headers } = Papa.parse(cleanedContent);
       
       // Validate CSV structure
       if (!Array.isArray(headers) || !Array.isArray(data)) {
