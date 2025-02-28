@@ -177,12 +177,6 @@ export default function Component() {
       setSendAsError('');
     }
 
-    // Validate Subject (required field)
-    if (!subject.trim()) {
-      setSubject('');
-      isValid = false;
-    }
-
     // Validate CC (optional field)
     if (cc && !validateEmail(cc)) {
       setCcError('Please enter a valid email address');
@@ -872,9 +866,7 @@ export default function Component() {
               )}
             </div>
             <div>
-              <Label htmlFor="subject" className="after:content-['*'] after:ml-0.5 after:text-red-500">
-                Subject
-              </Label>
+              <Label htmlFor="subject">Subject</Label>
               <Input
                 id="subject"
                 type="text"
