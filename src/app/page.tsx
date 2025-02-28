@@ -177,6 +177,12 @@ export default function Component() {
       setSendAsError('');
     }
 
+    // Validate Subject (required field)
+    if (!subject.trim()) {
+      setSubject('');
+      isValid = false;
+    }
+
     // Validate CC (optional field)
     if (cc && !validateEmail(cc)) {
       setCcError('Please enter a valid email address');
@@ -775,7 +781,9 @@ export default function Component() {
               </label>
             </div>
             <div>
-              <Label htmlFor="csv-upload">Upload CSV File</Label>
+              <Label htmlFor="csv-upload" className="after:content-['*'] after:ml-0.5 after:text-red-500">
+                Upload CSV File
+              </Label>
               <div className="relative">
                 <Input
                   id="csv-upload"
@@ -793,7 +801,9 @@ export default function Component() {
               )}
             </div>
             <div>
-              <Label htmlFor="sendAs">Send As</Label>
+              <Label htmlFor="sendAs" className="after:content-['*'] after:ml-0.5 after:text-red-500">
+                Send As
+              </Label>
               <div className="relative">
                 <input
                   list="sendAsOptions"
@@ -823,7 +833,7 @@ export default function Component() {
                   id="cc"
                   value={cc}
                   onChange={handleCcChange}
-                  placeholder="Start typing name or email..."
+                  placeholder="Start typing name or email"
                   className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <datalist id="sendAsOptions">
@@ -862,7 +872,9 @@ export default function Component() {
               )}
             </div>
             <div>
-              <Label htmlFor="subject">Subject</Label>
+              <Label htmlFor="subject" className="after:content-['*'] after:ml-0.5 after:text-red-500">
+                Subject
+              </Label>
               <Input
                 id="subject"
                 type="text"
@@ -891,7 +903,7 @@ export default function Component() {
               <Input
                 id="attachment"
                 type="text"
-                placeholder="Enter File Path or leave blank if not applicable"
+                placeholder="Enter file path"
                 value={attachment}
                 onChange={(e) => setAttachment(e.target.value)}
               />
