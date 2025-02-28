@@ -61,6 +61,8 @@ export default function Component() {
   const [processError, setProcessError] = useState<string>('');
   const [downloadError, setDownloadError] = useState<string>('');
   const [attachment, setAttachment] = useState<string>("");
+  const [cc, setCc] = useState<string>("");
+  const [ccError, setCcError] = useState<string>('');
 
   const [sendAsOptions] = useState<Array<{value: string, label: string}>>([
     { value: "abaker@hopeinternational.org", label: "Addison Baker" },
@@ -172,6 +174,14 @@ export default function Component() {
       isValid = false;
     } else {
       setSendAsError('');
+    }
+
+    // Validate CC (optional field)
+    if (cc && !validateEmail(cc)) {
+      setCcError('Please enter a valid email address');
+      isValid = false;
+    } else {
+      setCcError('');
     }
 
     // Validate BCC (optional field)
@@ -517,10 +527,11 @@ export default function Component() {
       );
 
       const finalData = [
-        ["Known As", "To", "BCC", "Subject", "Send As", "Attachment1"],
+        ["Known As", "To", "CC", "BCC", "Subject", "Send As", "Attachment1"],
         ...sortedData.map(([accountName, email]) => [
           accountName.replace(/\s*\(\d+\)$/, ''),
           email,
+          cc,
           bcc,
           subject,
           sendAs,
@@ -593,6 +604,7 @@ export default function Component() {
       setSubject('');
       setSendAs('');
       setAttachment('');
+      setCc('');
     };
   }, []);
 
@@ -630,6 +642,22 @@ export default function Component() {
       return;
     }
     setBcc(value);
+  };
+
+  const handleCcChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (sendAsOptions.some(option => option.value === value)) {
+      setCc(value);
+      return;
+    }
+    const matchByLabel = sendAsOptions.find(option => 
+      option.label.toLowerCase() === value.toLowerCase()
+    );
+    if (matchByLabel) {
+      setCc(matchByLabel.value);
+      return;
+    }
+    setCc(value);
   };
 
   return (
@@ -685,6 +713,29 @@ export default function Component() {
               {sendAsError && (
                 <p className="text-red-500 text-sm mt-2">
                   {sendAsError}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="cc">CC</Label>
+              <div className="relative">
+                <input
+                  list="sendAsOptions"
+                  id="cc"
+                  value={cc}
+                  onChange={handleCcChange}
+                  placeholder="Start typing name or email..."
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <datalist id="sendAsOptions">
+                  {sendAsOptions.map((option) => (
+                    <option key={option.value} value={option.value} label={option.label} />
+                  ))}
+                </datalist>
+              </div>
+              {ccError && (
+                <p className="text-red-500 text-sm mt-2">
+                  {ccError}
                 </p>
               )}
             </div>
