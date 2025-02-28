@@ -229,13 +229,17 @@ export default function Component() {
       const uniqueEmails = new Map();
       
       const accountNameIndex = headers.findIndex((h) => h === "Account Name");
-      const firstNameIndex = headers.findIndex((h) => h === "First Name");
-      const lastNameIndex = headers.findIndex((h) => h === "Last Name");
+      const firstNameIndex = headers.findIndex((h) => h === "First Name" || h === "First");
+      const lastNameIndex = headers.findIndex((h) => h === "Last Name" || h === "Last");
       const emailIndex = headers.findIndex((h) => h === "Email");
 
-      console.log("1. Starting processing");
+      console.log("Column indices:", { 
+        accountName: accountNameIndex, 
+        firstName: firstNameIndex, 
+        lastName: lastNameIndex, 
+        email: emailIndex 
+      });
       
-      // First, group rows by account name to check spouse pairs
       const accountGroups = new Map();
       data.forEach((row: string[]) => {
         const accountName = ((row[accountNameIndex] || "") as string)
