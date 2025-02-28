@@ -399,18 +399,38 @@ export default function Component() {
             }
             return;
           } else {
-            // Original logic for when toggle is OFF
-            if (allEmailsBlank && accountRows.length > 1) {
-              const displayName = accountRows
-                .map((r: string[]) => (r[firstNameIndex] || "").trim())
-                .filter((name: string) => name)
-                .join(" and ");
-              
-              if (!combinedRows.has(displayName)) {
-                combinedRows.set(displayName, "");
+            // When toggle is OFF - append shared last name once at the end if all emails blank
+            const firstNames = accountRows
+              .filter((row: string[]) => {
+                const firstName = ((row[firstNameIndex] || "") as string).trim();
+                const accountNameParts = originalAccountName
+                  .replace(/\s*household\s*/gi, "")
+                  .split(/\s*&\s*/);
+                
+                return accountNameParts.some(namePart => 
+                  namePart.trim().toLowerCase().startsWith(firstName.toLowerCase())
+                );
+              })
+              .map((r: string[]) => (r[firstNameIndex] || "").trim())
+              .filter((name: string) => name)
+              .join(" and ");
+            
+            // Add the last name once at the end if all emails are blank
+            const lastName = allEmailsBlank ? ` ${accountRows[0][lastNameIndex]}` : '';
+            const displayName = `${firstNames}${lastName}`;
+            
+            if (!combinedRows.has(displayName)) {
+              combinedRows.set(displayName, email);
+            } else if (email) {
+              const existingEmails = combinedRows.get(displayName) || "";
+              if (!existingEmails.includes(email)) {
+                combinedRows.set(
+                  displayName,
+                  existingEmails ? `${existingEmails};${email}` : email
+                );
               }
-              return;
             }
+            return;
           }
         }
 
