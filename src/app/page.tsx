@@ -63,6 +63,7 @@ export default function Component() {
   const [attachment, setAttachment] = useState<string>("");
   const [cc, setCc] = useState<string>("");
   const [ccError, setCcError] = useState<string>('');
+  const [useFullNames, setUseFullNames] = useState<boolean>(false);
 
   const [sendAsOptions] = useState<Array<{value: string, label: string}>>([
     { value: "abaker@hopeinternational.org", label: "Addison Baker" },
@@ -252,9 +253,7 @@ export default function Component() {
       
       const accountGroups = new Map();
       data.forEach((row: string[]) => {
-        const accountName = ((row[accountNameIndex] || "") as string)
-          .replace(/\s*household\s*/gi, "")
-          .trim();
+        const accountName = ((row[accountNameIndex] || "") as string).trim();
         
         if (!accountGroups.has(accountName)) {
           accountGroups.set(accountName, []);
@@ -271,9 +270,7 @@ export default function Component() {
         }
         
         const email = ((row[emailIndex] || "") as string).trim();
-        const accountName = ((row[accountNameIndex] || "") as string)
-          .replace(/\s*household\s*/gi, "")
-          .trim();
+        const accountName = ((row[accountNameIndex] || "") as string).trim();
         const firstName = ((row[firstNameIndex] || "") as string).toLowerCase();
         
         // If it's a child (first name not in account name) with blank email, skip this row
@@ -344,9 +341,7 @@ export default function Component() {
 
       // First, collect and merge emails for each original account name
       sortedRows.forEach((row: string[]) => {
-        const originalAccountName = ((row[accountNameIndex] || "") as string)
-          .replace(/\s*household\s*/gi, "")
-          .trim();
+        const originalAccountName = ((row[accountNameIndex] || "") as string).trim();
 
         const firstName = (row[firstNameIndex] || "").trim();
         const lastName = (row[lastNameIndex] || "").trim();
@@ -370,30 +365,59 @@ export default function Component() {
           return;
         }
 
-        // For accounts where both spouses have blank emails, combine their first names
-        if ((originalAccountName.includes("&")) && email === "") {
+        // For joint accounts
+        if (originalAccountName.includes("&")) {
           const accountRows = accountGroups.get(originalAccountName) || [];
           const allEmailsBlank = accountRows.every((r: string[]) => 
             ((r[emailIndex] || "") as string).trim() === ""
           );
-          
-          if (allEmailsBlank && accountRows.length > 1) {
-            const firstNames = accountRows
-              .map((r: string[]) => (r[firstNameIndex] || "").trim())
-              .filter((name: string) => name)
-              .join(" and ");
-            const displayName = `${firstNames} ${lastName}`;
+
+          if (useFullNames) {
+            // When toggle is ON
+            const displayName = allEmailsBlank
+              ? originalAccountName  // Keep full names for blank emails
+                .replace(/\s*household\s*/gi, "")  // Remove 'household'
+                .replace(/\s*&\s*/g, " and ")  // Replace & with and
+                .trim()
+              : originalAccountName  // For accounts with emails, show first names only
+                .replace(/\s*household\s*/gi, "")
+                .split("&")
+                .map(name => name.trim().split(" ")[0])
+                .join(" and ")
+                .trim();
             
             if (!combinedRows.has(displayName)) {
-              combinedRows.set(displayName, "");
+              combinedRows.set(displayName, email);
+            } else if (email) {
+              const existingEmails = combinedRows.get(displayName) || "";
+              if (!existingEmails.includes(email)) {
+                combinedRows.set(
+                  displayName,
+                  existingEmails ? `${existingEmails};${email}` : email
+                );
+              }
             }
             return;
+          } else {
+            // Original logic for when toggle is OFF
+            if (allEmailsBlank && accountRows.length > 1) {
+              const displayName = accountRows
+                .map((r: string[]) => (r[firstNameIndex] || "").trim())
+                .filter((name: string) => name)
+                .join(" and ");
+              
+              if (!combinedRows.has(displayName)) {
+                combinedRows.set(displayName, "");
+              }
+              return;
+            }
           }
         }
 
-        const displayName = email === "" 
-          ? `${firstName} ${lastName}`.trim()
-          : originalAccountName;
+        // For single contacts
+        const displayName = useFullNames
+          ? (email === "" ? `${firstName} ${lastName}`.trim() : firstName)  // Keep last name for blank emails
+          : (email === "" ? `${firstName} ${lastName}`.trim() : firstName);  // Original logic when OFF
 
         if (displayName) {
           if (combinedRows.has(displayName)) {
@@ -428,25 +452,25 @@ export default function Component() {
         let accountName: string = originalAccountName; // Initialize with default value
         
         // Clean up the account name just for relationship checking
-        originalAccountName = originalAccountName
+        const cleanedAccountName = originalAccountName
           .replace(/\s*household\s*/gi, "")
           .trim();
 
-        if (originalAccountName.includes("&")) {
+        if (cleanedAccountName.includes("&")) {
           // Find all rows that belong to this account
           const accountRows = data.filter(row => {
             const rowAccountName = ((row[accountNameIndex] || "") as string)
               .replace(/\s*household\s*/gi, "")
               .trim()
               .toLowerCase();
-            return rowAccountName === originalAccountName.toLowerCase();
+            return rowAccountName === cleanedAccountName.toLowerCase();
           });
 
           // Get only the parent names (those that appear in account name)
           const parentNames = accountRows
             .filter((row: string[]) => {
               const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
-              return originalAccountName.toLowerCase().includes(firstName);
+              return useFullNames || cleanedAccountName.toLowerCase().includes(firstName);
             })
             .map((row: string[]) => {
               const firstName = ((row[firstNameIndex] || "") as string).trim();
@@ -462,19 +486,18 @@ export default function Component() {
               .replace(/\s*household\s*/gi, "")
               .trim()
               .toLowerCase();
-            return rowAccountName === originalAccountName.toLowerCase();
+            return rowAccountName === cleanedAccountName.toLowerCase();
           });
 
           if (matchingRow) {
-            const firstName = ((matchingRow[firstNameIndex] || "") as string).trim();
-            const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
-            
-            // Use full name only for blank email entries
-            if (emails === "") {
-              accountName = `${firstName} ${lastName}`.trim();
-            } else {
-              accountName = firstName;
-            }
+            accountName = getDisplayName(
+              cleanedAccountName, 
+              emails, 
+              accountGroups.get(cleanedAccountName) || [],
+              firstNameIndex,
+              lastNameIndex,
+              matchingRow
+            );
           }
         }
 
@@ -660,6 +683,57 @@ export default function Component() {
     setCc(value);
   };
 
+  const getDisplayName = (
+    accountName: string,
+    emails: string,
+    accountRows: string[][],
+    firstNameIndex: number,
+    lastNameIndex: number,
+    matchingRow?: string[]
+  ): string => {
+    console.log('=== getDisplayName START ===');
+    console.log('Initial inputs:', {
+      accountName,
+      useFullNames,
+      hasAmpersand: accountName.includes("&")
+    });
+
+    if (useFullNames) {
+      // When toggle is ON, just clean up the account name and return it
+      return accountName
+        .replace(/\s*household\s*/gi, "")
+        .replace(/\s*&\s*/g, " and ")
+        .trim();
+    }
+
+    // Original logic for when toggle is OFF
+    if (accountName.includes("&")) {
+      const parentNames = accountRows
+        .filter((row: string[]) => {
+          const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
+          return accountName.toLowerCase().includes(firstName);
+        })
+        .map((row: string[]) => {
+          const firstName = ((row[firstNameIndex] || "") as string).trim();
+          return firstName;
+        });
+      return parentNames.join(" and ");
+    }
+
+    // Handle single person accounts
+    if (matchingRow) {
+      const firstName = ((matchingRow[firstNameIndex] || "") as string).trim();
+      const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
+      
+      if (emails === "") {
+        return `${firstName} ${lastName}`.trim();
+      } else {
+        return firstName;
+      }
+    }
+    return accountName;
+  };
+
   return (
     <ErrorBoundary>
       <div className="mt-8 mb-16">
@@ -675,6 +749,31 @@ export default function Component() {
             <CardTitle>CSV Processor</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="name-toggle">Include both spouses</Label>
+                <div className="relative group">
+                  <span className="cursor-help text-gray-500 hover:text-gray-700">(?)</span>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-lg p-2 shadow-lg w-64 z-50">
+                    <p className="text-sm text-gray-600">Shows both names in joint accounts, even if one spouse isn't in the data</p>
+                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
+                  </div>
+                </div>
+              </div>
+              <label htmlFor="name-toggle" className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="name-toggle"
+                  className="sr-only peer"
+                  checked={useFullNames}
+                  onChange={(e) => {
+                    console.log('Toggle clicked, new value:', e.target.checked);
+                    setUseFullNames(e.target.checked);
+                  }}
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
             <div>
               <Label htmlFor="csv-upload">Upload CSV File</Label>
               <div className="relative">
