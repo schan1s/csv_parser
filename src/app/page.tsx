@@ -551,17 +551,41 @@ export default function Component() {
 
       const finalData = [
         ["Known As", "To", "CC", "BCC", "Subject", "Send As", "Attachment1"],
-        ...sortedData.map(([accountName, email]) => [
-          email && !accountName.includes(" and ") ? 
-            accountName.split(" ")[0] : // Just the first name
-            accountName.replace(/\s*\(\d+\)$/, ''), // Full name for joint accounts or blank emails
-          email,
-          cc,
-          bcc,
-          subject,
-          sendAs,
-          cleanedAttachment,
-        ]),
+        ...sortedData.map(([accountName, email]) => {
+          // Find the matching row in the original data for this person
+          const matchingRow = data.find(row => {
+            const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
+            const lastName = ((row[lastNameIndex] || "") as string).trim().toLowerCase();
+            const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+            return accountName.toLowerCase().includes(fullName);
+          });
+
+          // Check if this is a child (first name not in household/account name)
+          const isChild = matchingRow && !((matchingRow[accountNameIndex] || "") as string)
+            .toLowerCase()
+            .includes(((matchingRow[firstNameIndex] || "") as string).toLowerCase());
+
+          let displayName = accountName.replace(/\s*\(\d+\)$/, '');
+          
+          // If it's a child, always show full name by combining first and last name from original data
+          if (isChild && matchingRow) {
+            const firstName = ((matchingRow[firstNameIndex] || "") as string).trim();
+            const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
+            displayName = `${firstName} ${lastName}`.trim();
+          } else if (email && !accountName.includes(" and ")) {
+            displayName = accountName.split(" ")[0]; // Just first name for adults with email
+          }
+
+          return [
+            displayName,
+            email,
+            cc,
+            bcc,
+            subject,
+            sendAs,
+            cleanedAttachment,
+          ];
+        }),
       ];
       setProcessedData(finalData);
     } catch (error) {
