@@ -339,10 +339,8 @@ export default function Component() {
 
       const combinedRows = new Map();
 
-      // First, collect and merge emails for each original account name
       sortedRows.forEach((row: string[]) => {
         const originalAccountName = ((row[accountNameIndex] || "") as string).trim();
-
         const firstName = (row[firstNameIndex] || "").trim();
         const lastName = (row[lastNameIndex] || "").trim();
         const email = (row[emailIndex] || "").trim();
@@ -350,18 +348,10 @@ export default function Component() {
         // Check if this is a child with email
         const isChildWithEmail = !originalAccountName.toLowerCase().includes(firstName.toLowerCase()) && email !== "";
         
-        // If it's a child with email, check if the email is already in use
         if (isChildWithEmail) {
-          // Check if this email already exists in any parent row
-          const emailExists = Array.from(combinedRows.values()).some(existingEmail => 
-            existingEmail.split(';').includes(email)
-          );
-          
-          // Only add child row if email is unique
-          if (!emailExists) {
-            const displayName = `${firstName} ${lastName}`;
-            combinedRows.set(displayName, email);
-          }
+          // Handle child rows as before
+          const displayName = `${firstName} ${lastName}`;
+          combinedRows.set(displayName, email);
           return;
         }
 
@@ -434,22 +424,19 @@ export default function Component() {
           }
         }
 
-        // For single contacts
-        const displayName = useFullNames
-          ? (email === "" ? `${firstName} ${lastName}`.trim() : firstName)  // Keep last name for blank emails
-          : (email === "" ? `${firstName} ${lastName}`.trim() : firstName);  // Original logic when OFF
-
-        if (displayName) {
-          if (combinedRows.has(displayName)) {
-            const existingEmails = combinedRows.get(displayName) || "";
+        // For single contacts - use the full account name as the key
+        // This ensures emails only combine within the same account
+        if (originalAccountName) {
+          if (combinedRows.has(originalAccountName)) {
+            const existingEmails = combinedRows.get(originalAccountName) || "";
             if (email && !existingEmails.includes(email)) {
               combinedRows.set(
-                displayName,
+                originalAccountName,
                 existingEmails ? `${existingEmails};${email}` : email
               );
             }
           } else {
-            combinedRows.set(displayName, email);
+            combinedRows.set(originalAccountName, email);
           }
         }
       });
@@ -468,11 +455,10 @@ export default function Component() {
       const finalCombinedRows = new Map<string, string>();
       const nameCountMap = new Map<string, number>();
 
-      combinedRows.forEach((emails: string, originalAccountName: string) => {
-        let accountName: string = originalAccountName; // Initialize with default value
+      combinedRows.forEach((emails: string, accountName: string) => {
+        let accountNameToUse = accountName;
         
-        // Clean up the account name just for relationship checking
-        const cleanedAccountName = originalAccountName
+        const cleanedAccountName = accountName
           .replace(/\s*household\s*/gi, "")
           .trim();
 
@@ -498,46 +484,40 @@ export default function Component() {
             });
 
           // Create display name using just parent names
-          accountName = parentNames.join(" and ");
+          accountNameToUse = parentNames.join(" and ");
         } else {
-          // For single accounts, use the First Name from the data
+          // For single accounts, verify against the full account name
           const matchingRow = data.find(row => {
-            const rowAccountName = ((row[accountNameIndex] || "") as string)
-              .replace(/\s*household\s*/gi, "")
-              .trim()
-              .toLowerCase();
-            return rowAccountName === cleanedAccountName.toLowerCase();
+            const firstName = ((row[firstNameIndex] || "") as string).trim();
+            const lastName = ((row[lastNameIndex] || "") as string).trim();
+            const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+            return cleanedAccountName.toLowerCase().includes(fullName);
           });
 
           if (matchingRow) {
-            accountName = getDisplayName(
-              cleanedAccountName, 
-              emails, 
-              accountGroups.get(cleanedAccountName) || [],
-              firstNameIndex,
-              lastNameIndex,
-              matchingRow
-            );
+            const firstName = ((matchingRow[firstNameIndex] || "") as string).trim();
+            const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
+            accountNameToUse = `${firstName} ${lastName}`.trim();
           }
         }
 
         // Replace any remaining "&" with "and"
-        accountName = accountName.replace(/\s*&\s*/g, " and ");
+        accountNameToUse = accountNameToUse.replace(/\s*&\s*/g, " and ");
 
         // Use a case-sensitive key for the Map
-        const caseSensitiveKey = `${accountName}\0${accountName.toLowerCase()}`;
+        const caseSensitiveKey = `${accountNameToUse}\0${accountNameToUse.toLowerCase()}`;
 
         // Check if this name has been used before
         if (nameCountMap.has(caseSensitiveKey)) {
           const count = nameCountMap.get(caseSensitiveKey)! + 1;
           nameCountMap.set(caseSensitiveKey, count);
           // Use numbered key internally to maintain uniqueness in the Map
-          const internalKey = `${accountName} (${count})`;
+          const internalKey = `${accountNameToUse} (${count})`;
           // Store with the non-numbered display name
           finalCombinedRows.set(internalKey, emails);
         } else {
           nameCountMap.set(caseSensitiveKey, 1);
-          finalCombinedRows.set(accountName, emails);
+          finalCombinedRows.set(accountNameToUse, emails);
         }
       });
 
@@ -572,7 +552,9 @@ export default function Component() {
       const finalData = [
         ["Known As", "To", "CC", "BCC", "Subject", "Send As", "Attachment1"],
         ...sortedData.map(([accountName, email]) => [
-          accountName.replace(/\s*\(\d+\)$/, ''),
+          email && !accountName.includes(" and ") ? 
+            accountName.split(" ")[0] : // Just the first name
+            accountName.replace(/\s*\(\d+\)$/, ''), // Full name for joint accounts or blank emails
           email,
           cc,
           bcc,
@@ -711,15 +693,7 @@ export default function Component() {
     lastNameIndex: number,
     matchingRow?: string[]
   ): string => {
-    console.log('=== getDisplayName START ===');
-    console.log('Initial inputs:', {
-      accountName,
-      useFullNames,
-      hasAmpersand: accountName.includes("&")
-    });
-
     if (useFullNames) {
-      // When toggle is ON, just clean up the account name and return it
       return accountName
         .replace(/\s*household\s*/gi, "")
         .replace(/\s*&\s*/g, " and ")
@@ -731,6 +705,7 @@ export default function Component() {
       const parentNames = accountRows
         .filter((row: string[]) => {
           const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
+          // Verify the first name appears in the account name
           return accountName.toLowerCase().includes(firstName);
         })
         .map((row: string[]) => {
@@ -744,11 +719,11 @@ export default function Component() {
     if (matchingRow) {
       const firstName = ((matchingRow[firstNameIndex] || "") as string).trim();
       const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
+      const fullName = `${firstName} ${lastName}`.trim();
       
-      if (emails === "") {
-        return `${firstName} ${lastName}`.trim();
-      } else {
-        return firstName;
+      // Check if this person's full name matches the account name
+      if (accountName.toLowerCase().includes(fullName.toLowerCase())) {
+        return emails === "" ? fullName : firstName;
       }
     }
     return accountName;
