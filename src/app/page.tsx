@@ -500,7 +500,9 @@ export default function Component() {
             .toLowerCase()
             .includes(((matchingRow[firstNameIndex] || "") as string).toLowerCase());
 
-          let displayName = accountName.replace(/\s*\(\d+\)$/, '');
+          let displayName = accountName
+            .replace(/\s*\(\d+\)$/, '')
+            .replace(/\s*household\s*/gi, '');
           
           // If it's a child, always show full name by combining first and last name from original data
           if (isChild && matchingRow) {
@@ -508,7 +510,9 @@ export default function Component() {
             const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
             displayName = `${firstName} ${lastName}`.trim();
           } else if (email && !accountName.includes(" and ")) {
-            displayName = accountName.split(" ")[0]; // Just first name for adults with email
+            displayName = accountName
+              .replace(/\s*household\s*/gi, '')
+              .split(" ")[0]; // Just first name for adults with email
           }
 
           return [
