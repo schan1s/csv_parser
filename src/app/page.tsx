@@ -201,20 +201,18 @@ export default function Component() {
     
     try {
       setProcessError('');
+      console.log('STARTING_PROCESS:', { useFullNames });
       
       // More thorough cleaning of the attachment path
       const cleanedAttachment = attachment
         .trim()
-        .replace(/^["']|["']$/g, ''); // This will remove single or double quotes from start and end
+        .replace(/^["']|["']$/g, '');
       const replaceTextInQuotes = (text: string) => {
-        // Find anything between double quotes and replace with bubblegum
         const findTextBetweenQuotes = /"[^"]*"/g;
         return text.replace(findTextBetweenQuotes, 'bubblegum');
       };
         
       const extraCleanedAttachment = replaceTextInQuotes(cleanedAttachment);      
-      console.log('Original attachment:', attachment); // Debug log
-      console.log('Cleaned attachment:', extraCleanedAttachment); // Debug log
       
       // Validate fields before processing
       if (!validateFields()) {
@@ -232,24 +230,32 @@ export default function Component() {
       // Your existing processing logic
       const { data, headers } = Papa.parse(cleanedContent);
       
+      // First find the indices
+      const accountNameIndex = headers.findIndex((h) => h === "Account Name");
+      const firstNameIndex = headers.findIndex((h) => h === "First Name" || h === "First");
+      const lastNameIndex = headers.findIndex((h) => h === "Last Name" || h === "Last");
+      const emailIndex = headers.findIndex((h) => h === "Email");
+
+      // Then add the debug log
+      console.log('PARSED_DATA:', {
+        indices: {
+          accountName: accountNameIndex,
+          firstName: firstNameIndex,
+          lastName: lastNameIndex,
+          email: emailIndex
+        },
+        sampleRow: data[0],
+        firstNames: data.map(row => row[firstNameIndex]),
+        lastNames: data.map(row => row[lastNameIndex]),
+        accountNames: data.map(row => row[accountNameIndex])
+      });
+      
       // Validate CSV structure
       if (!Array.isArray(headers) || !Array.isArray(data)) {
         throw new Error('Invalid CSV structure');
       }
 
       const uniqueEmails = new Map();
-      
-      const accountNameIndex = headers.findIndex((h) => h === "Account Name");
-      const firstNameIndex = headers.findIndex((h) => h === "First Name" || h === "First");
-      const lastNameIndex = headers.findIndex((h) => h === "Last Name" || h === "Last");
-      const emailIndex = headers.findIndex((h) => h === "Email");
-
-      console.log("Column indices:", { 
-        accountName: accountNameIndex, 
-        firstName: firstNameIndex, 
-        lastName: lastNameIndex, 
-        email: emailIndex 
-      });
       
       const accountGroups = new Map();
       data.forEach((row: string[]) => {
@@ -260,9 +266,6 @@ export default function Component() {
         }
         accountGroups.get(accountName).push(row);
       });
-
-      // Log the groups to verify
-      console.log("Account Groups:", Object.fromEntries(accountGroups));
 
       const processedRows = data.filter((row: string[], index: number) => {
         if (!Array.isArray(row) || row.length <= emailIndex) {
@@ -306,16 +309,12 @@ export default function Component() {
         return true;
       });
 
-      console.log("2. After filtering");
-
       // 2. Sort by the 'account name' column
       processedRows.sort((a: string[], b: string[]) => {
         const nameA = ((a[accountNameIndex] || "") as string).toLowerCase();
         const nameB = ((b[accountNameIndex] || "") as string).toLowerCase();
         return nameA.localeCompare(nameB);
       });
-
-      console.log("3. After first sort");
 
       // 3. Sort children with emails to the bottom
       const sortedRows = processedRows.sort((a: string[], b: string[]) => {
@@ -334,8 +333,6 @@ export default function Component() {
         if (!aIsChildWithEmail && bIsChildWithEmail) return -1; // Move b to bottom
         return 0;
       });
-
-      console.log("4. After second sort");
 
       const combinedRows = new Map();
 
@@ -372,7 +369,29 @@ export default function Component() {
               : originalAccountName  // For accounts with emails, show first names only
                 .replace(/\s*household\s*/gi, "")
                 .split("&")
-                .map(name => name.trim().split(" ")[0])
+                .map(name => {
+                  console.log('PROCESSING_NAME:', {
+                    fullName: name.trim(),
+                    matchingRows: accountRows.map((row: string[]) => ({
+                      firstName: row[firstNameIndex],
+                      lastName: row[lastNameIndex]
+                    }))
+                  });
+                  
+                  // Find the matching row where the first name appears in this part of the name
+                  const matchingRow = accountRows.find((row: string[]) => {
+                    const firstName = row[firstNameIndex].toLowerCase();
+                    return name.trim().toLowerCase().includes(firstName.toLowerCase());
+                  });
+                  
+                  // If we found a match, use the full first name from the data
+                  if (matchingRow) {
+                    return matchingRow[firstNameIndex];
+                  }
+                  
+                  // If no match found, use the first word
+                  return name.trim().split(" ")[0];
+                })
                 .join(" and ")
                 .trim();
             
@@ -441,91 +460,7 @@ export default function Component() {
         }
       });
 
-      console.log("7. After forEach");
-
-      // Create a set of all full names (firstName + lastName) in the data
-      const allNames = new Set(
-        data.map((row: string[]) => {
-          const firstName = ((row[firstNameIndex] || "") as string).toLowerCase().trim();
-          const lastName = ((row[lastNameIndex] || "") as string).toLowerCase().trim();
-          return `${firstName} ${lastName}`.trim();
-        }).filter(name => name)
-      );
-
-      const finalCombinedRows = new Map<string, string>();
-      const nameCountMap = new Map<string, number>();
-
-      combinedRows.forEach((emails: string, accountName: string) => {
-        let accountNameToUse = accountName;
-        
-        const cleanedAccountName = accountName
-          .replace(/\s*household\s*/gi, "")
-          .trim();
-
-        if (cleanedAccountName.includes("&")) {
-          // Find all rows that belong to this account
-          const accountRows = data.filter(row => {
-            const rowAccountName = ((row[accountNameIndex] || "") as string)
-              .replace(/\s*household\s*/gi, "")
-              .trim()
-              .toLowerCase();
-            return rowAccountName === cleanedAccountName.toLowerCase();
-          });
-
-          // Get only the parent names (those that appear in account name)
-          const parentNames = accountRows
-            .filter((row: string[]) => {
-              const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
-              return useFullNames || cleanedAccountName.toLowerCase().includes(firstName);
-            })
-            .map((row: string[]) => {
-              const firstName = ((row[firstNameIndex] || "") as string).trim();
-              return firstName;
-            });
-
-          // Create display name using just parent names
-          accountNameToUse = parentNames.join(" and ");
-        } else {
-          // For single accounts, verify against the full account name
-          const matchingRow = data.find(row => {
-            const firstName = ((row[firstNameIndex] || "") as string).trim();
-            const lastName = ((row[lastNameIndex] || "") as string).trim();
-            const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
-            return cleanedAccountName.toLowerCase().includes(fullName);
-          });
-
-          if (matchingRow) {
-            const firstName = ((matchingRow[firstNameIndex] || "") as string).trim();
-            const lastName = ((matchingRow[lastNameIndex] || "") as string).trim();
-            accountNameToUse = `${firstName} ${lastName}`.trim();
-          }
-        }
-
-        // Replace any remaining "&" with "and"
-        accountNameToUse = accountNameToUse.replace(/\s*&\s*/g, " and ");
-
-        // Use a case-sensitive key for the Map
-        const caseSensitiveKey = `${accountNameToUse}\0${accountNameToUse.toLowerCase()}`;
-
-        // Check if this name has been used before
-        if (nameCountMap.has(caseSensitiveKey)) {
-          const count = nameCountMap.get(caseSensitiveKey)! + 1;
-          nameCountMap.set(caseSensitiveKey, count);
-          // Use numbered key internally to maintain uniqueness in the Map
-          const internalKey = `${accountNameToUse} (${count})`;
-          // Store with the non-numbered display name
-          finalCombinedRows.set(internalKey, emails);
-        } else {
-          nameCountMap.set(caseSensitiveKey, 1);
-          finalCombinedRows.set(accountNameToUse, emails);
-        }
-      });
-
-      // Log the final combined rows map
-      console.log("Final Combined Rows Map:", Array.from(finalCombinedRows.entries()));
-
-      // 5. Convert to array and sort blank emails to the bottom, and children with emails after that
-      const sortedData = Array.from(finalCombinedRows.entries()).sort(
+      const sortedData = Array.from(combinedRows.entries()).sort(
         ([nameA, emailA], [nameB, emailB]) => {
           const isChildA = !data.some(row => 
             ((row[accountNameIndex] || "") as string).toLowerCase().includes(nameA.split(" ")[0].toLowerCase())
@@ -715,21 +650,55 @@ export default function Component() {
     accountRows: string[][],
     firstNameIndex: number,
     lastNameIndex: number,
+    accountNameIndex: number,
     matchingRow?: string[]
   ): string => {
     if (useFullNames) {
-      return accountName
-        .replace(/\s*household\s*/gi, "")
-        .replace(/\s*&\s*/g, " and ")
-        .trim();
+      if (accountName.includes("&")) {
+        const cleanedAccountName = accountName
+          .replace(/\s*household\s*/gi, "")
+          .trim();
+
+        const nameParts = cleanedAccountName.split(/\s*&\s*/);
+        
+        const names = nameParts.map(namePart => {
+          console.log('NAME_PROCESSING:', {
+            namePart,
+            matchingRows: accountRows.map((row: string[]) => ({
+              accountName: row[accountNameIndex],
+              firstName: row[firstNameIndex],
+              lastName: row[lastNameIndex],
+              wouldMatch: namePart.toLowerCase().includes(row[firstNameIndex].toLowerCase())
+            }))
+          });
+
+          const matchingRow = accountRows.find((row: string[]) => {
+            const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
+            // We need to reverse the includes check - the name part should be included in the account name
+            return namePart.toLowerCase().includes(firstName);
+          });
+          
+          if (matchingRow) {
+            const result = ((matchingRow[firstNameIndex] || "") as string).trim();
+            console.log('MATCH_FOUND:', {
+              namePart,
+              matchedName: result
+            });
+            return result;
+          }
+          
+          return namePart.split(" ")[0];
+        });
+        
+        return names.join(" and ");
+      }
     }
 
-    // Original logic for when toggle is OFF
+    // When toggle is OFF, keep existing logic unchanged
     if (accountName.includes("&")) {
       const parentNames = accountRows
         .filter((row: string[]) => {
           const firstName = ((row[firstNameIndex] || "") as string).trim().toLowerCase();
-          // Verify the first name appears in the account name
           return accountName.toLowerCase().includes(firstName);
         })
         .map((row: string[]) => {
@@ -786,7 +755,6 @@ export default function Component() {
                   className="sr-only peer"
                   checked={useFullNames}
                   onChange={(e) => {
-                    console.log('Toggle clicked, new value:', e.target.checked);
                     setUseFullNames(e.target.checked);
                   }}
                 />
